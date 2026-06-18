@@ -4,16 +4,17 @@ import { buildIndex } from '../graph-index.js';
 import type { Graph } from '../types.js';
 
 describe('kafkaHandler.validate', () => {
-  it('errors when kafka has no publisher', () => {
+  it('errors when kafka has no publisher (only a worker subscribes)', () => {
     const g: Graph = {
       experimentId: 'e',
       nodes: [{ id: 'k', type: 'kafka', label: 'Bus' }, { id: 'w', type: 'worker', label: 'W' }],
-      edges: [{ source: 'k', target: 'w' }],
+      edges: [{ source: 'w', target: 'k' }],
     };
     const errors = kafkaHandler.validate(g.nodes[0]!, buildIndex(g));
     expect(errors.some((e) => /publisher/i.test(e.message))).toBe(true);
+    expect(errors.some((e) => /subscriber/i.test(e.message))).toBe(false);
   });
-  it('errors when kafka has no subscriber', () => {
+  it('errors when kafka has no subscriber (only a service publishes)', () => {
     const g: Graph = {
       experimentId: 'e',
       nodes: [{ id: 's', type: 'service', label: 'S' }, { id: 'k', type: 'kafka', label: 'Bus' }],
@@ -21,8 +22,14 @@ describe('kafkaHandler.validate', () => {
     };
     const errors = kafkaHandler.validate(g.nodes[1]!, buildIndex(g));
     expect(errors.some((e) => /subscriber/i.test(e.message))).toBe(true);
+    expect(errors.some((e) => /publisher/i.test(e.message))).toBe(false);
   });
-  it('passes with both a publisher and a subscriber', () => {
+  it('errors with both messages when kafka has no edges at all', () => {
+    const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Bus' }], edges: [] };
+    const errors = kafkaHandler.validate(g.nodes[0]!, buildIndex(g));
+    expect(errors).toHaveLength(2);
+  });
+  it('passes with a service publisher and a worker subscriber', () => {
     const g: Graph = {
       experimentId: 'e',
       nodes: [
@@ -30,7 +37,7 @@ describe('kafkaHandler.validate', () => {
         { id: 'k', type: 'kafka', label: 'Bus' },
         { id: 'w', type: 'worker', label: 'W' },
       ],
-      edges: [{ source: 's', target: 'k' }, { source: 'k', target: 'w' }],
+      edges: [{ source: 's', target: 'k' }, { source: 'w', target: 'k' }],
     };
     expect(kafkaHandler.validate(g.nodes[1]!, buildIndex(g))).toEqual([]);
   });
