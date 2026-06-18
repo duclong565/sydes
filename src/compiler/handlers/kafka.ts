@@ -6,7 +6,10 @@ export const kafkaHandler: NodeHandler = {
     const errors = [];
     if (index.inEdges(node.id).length === 0)
       errors.push({ nodeId: node.id, message: 'Kafka must have at least one publisher' });
-    if (index.outEdges(node.id).length === 0)
+    const hasSubscriber =
+      index.outEdges(node.id).length > 0 ||
+      index.inEdges(node.id).some((e) => index.nodeMap.get(e.source)?.type === 'worker');
+    if (!hasSubscriber)
       errors.push({ nodeId: node.id, message: 'Kafka must have at least one subscriber' });
     return errors;
   },
