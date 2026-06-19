@@ -36,6 +36,7 @@ export class K6Runner {
   constructor(private readonly runner: Runner) {}
 
   async run(experimentId: string, runDir: string): Promise<K6Result> {
+    // Docker Compose names the network <project>_<key>: project `sds-<id>` + YAML key `sds-<id>-net`.
     const net = `sds-${experimentId}_sds-${experimentId}-net`;
     const r = await this.runner.run([
       'docker', 'run', '--rm', '--network', net,

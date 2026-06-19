@@ -51,7 +51,9 @@ export async function runSim(
     await controller.down(graph.experimentId);
     throw e;
   }
-  out.log(`network: sds-${graph.experimentId}_sds-${graph.experimentId}-net   |   Ctrl-C to tear down`);
+  // Real Docker network name = <project>_<key> (Compose prefixes the YAML key with the project name).
+  const hint = opts.loadConfig ? '' : '   |   Ctrl-C to tear down';
+  out.log(`network: sds-${graph.experimentId}_sds-${graph.experimentId}-net${hint}`);
   return graph.experimentId;
 }
 

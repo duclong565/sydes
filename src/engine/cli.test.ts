@@ -50,7 +50,7 @@ describe('runSim', () => {
     const id = await runSim(tmpGraph(pairGraph), c, out);
     expect(id).toBe('pair');
     expect(out.lines.some((l) => l.includes('sds-pair-edge-a-1'))).toBe(true);
-    expect(out.lines.some((l) => l.includes('sds-pair-net'))).toBe(true);
+    expect(out.lines.some((l) => l.includes('sds-pair_sds-pair-net'))).toBe(true);
   });
 
   it('throws and reports compile errors for an invalid graph', async () => {
