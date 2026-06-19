@@ -31,6 +31,7 @@ export interface ComposeService {
   image: string;
   environment: Record<string, string>;
   ports?: string[];    // e.g. "8080:8080"
+  volumes?: string[];  // e.g. "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
   healthcheck?: {
     test: string[];
     interval: string;

@@ -37,3 +37,27 @@ describe('generateCompose', () => {
     expect(yaml).toContain('      retries: 10');
   });
 });
+
+describe('generateCompose volumes', () => {
+  it('renders a volumes block when present', () => {
+    const services: ComposeService[] = [
+      {
+        name: 'gateway',
+        image: 'nginx:alpine',
+        environment: {},
+        ports: ['80:80'],
+        volumes: ['./nginx.conf:/etc/nginx/conf.d/default.conf:ro'],
+      },
+    ];
+    const yaml = generateCompose(services, 'net');
+    expect(yaml).toContain('    volumes:');
+    expect(yaml).toContain('      - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"');
+  });
+
+  it('omits the volumes block when absent', () => {
+    const services: ComposeService[] = [
+      { name: 'svc', image: 'sds/microservice', environment: { LATENCY_MS: '0' } },
+    ];
+    expect(generateCompose(services, 'net')).not.toContain('volumes:');
+  });
+});
