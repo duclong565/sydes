@@ -137,3 +137,30 @@ describe('ExperimentController.status', () => {
     expect(st).toEqual([{ name: 'x', state: 'exited', health: undefined, publishers: [] }]);
   });
 });
+
+describe('ExperimentController.preflight', () => {
+  it('passes when every sds/* image inspects ok', async () => {
+    const runner = new FakeRunner(); // default code 0 = image present
+    const c = new ExperimentController(runner, { runRoot: freshRoot() });
+    await expect(
+      c.preflight({ compose: 'services:\n  a:\n    image: sds/microservice\n' }),
+    ).resolves.toBeUndefined();
+    expect(runner.calls).toContainEqual(['docker', 'image', 'inspect', 'sds/microservice']);
+  });
+
+  it('throws a build hint when an sds/* image is missing', async () => {
+    const runner = new FakeRunner();
+    runner.responses = [{ code: 1, stdout: '', stderr: 'No such image' }];
+    const c = new ExperimentController(runner, { runRoot: freshRoot() });
+    await expect(
+      c.preflight({ compose: 'services:\n  w:\n    image: sds/worker\n' }),
+    ).rejects.toThrow(/sds\/worker not found.*docker build -t sds\/worker \.\/images\/worker/);
+  });
+
+  it('ignores non-sds images', async () => {
+    const runner = new FakeRunner();
+    const c = new ExperimentController(runner, { runRoot: freshRoot() });
+    await c.preflight({ compose: 'services:\n  k:\n    image: bitnami/kafka:latest\n' });
+    expect(runner.calls).toEqual([]); // no inspects issued
+  });
+});

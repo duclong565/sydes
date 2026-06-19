@@ -61,6 +61,24 @@ export class ExperimentController {
     await this.runner.run([...this.baseArgs(id), 'down', '-v', '--remove-orphans']);
   }
 
+  /** Fail-loud: verify every sds/* image referenced by the compose exists locally. */
+  async preflight(output: CompilerOutput): Promise<void> {
+    const images = [
+      ...new Set(
+        [...output.compose.matchAll(/image:\s*(sds\/\S+)/g)].map((m) => m[1]!),
+      ),
+    ];
+    for (const img of images) {
+      const r = await this.runner.run(['docker', 'image', 'inspect', img]);
+      if (r.code !== 0) {
+        const name = img.split('/')[1]!;
+        throw new Error(
+          `✗ image ${img} not found — build it: docker build -t ${img} ./images/${name}`,
+        );
+      }
+    }
+  }
+
   /** Returns current container status. Tolerates array / single-object / NDJSON ps output. */
   async status(id: string): Promise<ServiceStatus[]> {
     const r = await this.runner.run([...this.baseArgs(id), 'ps', '--format', 'json']);
