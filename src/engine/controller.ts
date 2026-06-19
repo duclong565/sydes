@@ -71,7 +71,7 @@ export class ExperimentController {
     for (const img of images) {
       const r = await this.runner.run(['docker', 'image', 'inspect', img]);
       if (r.code !== 0) {
-        const name = img.split('/')[1]!;
+        const name = img.split('/')[1]!.split(':')[0]!;
         throw new Error(
           `✗ image ${img} not found — build it: docker build -t ${img} ./images/${name}`,
         );

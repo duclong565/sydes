@@ -157,6 +157,15 @@ describe('ExperimentController.preflight', () => {
     ).rejects.toThrow(/sds\/worker not found.*docker build -t sds\/worker \.\/images\/worker/);
   });
 
+  it('strips the tag when building the ./images path for a tagged image', async () => {
+    const runner = new FakeRunner();
+    runner.responses = [{ code: 1, stdout: '', stderr: 'No such image' }];
+    const c = new ExperimentController(runner, { runRoot: freshRoot() });
+    await expect(
+      c.preflight({ compose: 'services:\n  w:\n    image: sds/worker:latest\n' }),
+    ).rejects.toThrow(/docker build -t sds\/worker:latest \.\/images\/worker$/);
+  });
+
   it('ignores non-sds images', async () => {
     const runner = new FakeRunner();
     const c = new ExperimentController(runner, { runRoot: freshRoot() });
