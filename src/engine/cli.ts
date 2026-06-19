@@ -5,6 +5,8 @@ import type { Graph, LoadConfig } from '../compiler/types.js';
 import { ExperimentController } from './controller.js';
 import { RealRunner } from './runner.js';
 import { K6Runner } from './k6-runner.js';
+import { MetricsCollector, DockerodeStatsSource } from './metrics.js';
+import type { MetricsSnapshot } from './metrics.js';
 
 export interface Logger {
   log(s: string): void;
@@ -14,9 +16,9 @@ export interface Logger {
 export interface SimOptions {
   loadConfig?: LoadConfig;
   k6Runner?: Pick<K6Runner, 'run'>;
+  metrics?: { collector: Pick<MetricsCollector, 'sample'>; intervalMs: number };
 }
 
-/** Compile a graph file, bring its stack up, optionally run a load test, print status. Returns the experimentId. */
 export async function runSim(
   graphPath: string,
   controller: ExperimentController,
@@ -31,36 +33,72 @@ export async function runSim(
   }
   await controller.preflight(result.output);
   const runDir = controller.writeArtifacts(graph.experimentId, result.output);
-  out.log(`⏳ warming up ${graph.experimentId} (kafka cold start ~5-10s if present)…`);
+  const id = graph.experimentId;
+  out.log(`⏳ warming up ${id} (kafka cold start ~5-10s if present)…`);
+
+  const printSnaps = (snaps: MetricsSnapshot[]) => {
+    for (const s of snaps) {
+      out.log(`  ${s.name}  cpu ${s.cpuPercent.toFixed(1)}%  mem ${s.memMB.toFixed(1)}MB`);
+    }
+  };
+
   try {
-    await controller.up(graph.experimentId);
-    for (const s of await controller.status(graph.experimentId)) {
+    await controller.up(id);
+    for (const s of await controller.status(id)) {
       const ports = s.publishers.map((p) => `${p.published}->${p.target}`).join(', ') || '-';
       out.log(`  ${s.name}  ${s.state}${s.health ? '/' + s.health : ''}  ports:${ports}`);
     }
+
+    if (opts.metrics) {
+      out.log('metrics (baseline):');
+      printSnaps(await opts.metrics.collector.sample(id));
+    }
+
     if (opts.loadConfig && opts.k6Runner) {
       out.log(`🔥 running load: ${opts.loadConfig.rate} rps for ${opts.loadConfig.durationSec}s…`);
-      const k = await opts.k6Runner.run(graph.experimentId, runDir);
+      const k6p = opts.k6Runner.run(id, runDir);
+      if (opts.metrics) {
+        const m = opts.metrics;
+        let settled = false;
+        void k6p.finally(() => { settled = true; }).catch(() => {});
+        while (!settled) {
+          await new Promise((r) => setTimeout(r, m.intervalMs));
+          if (settled) break;
+          try {
+            out.log('metrics:');
+            printSnaps(await m.collector.sample(id));
+          } catch (e) {
+            out.error(`metrics sample failed: ${(e as Error).message}`);
+          }
+        }
+      }
+      const k = await k6p;
       out.log(
         `load: requests=${k.requests}  rps=${k.rps.toFixed(1)}  ` +
           `avg=${k.latencyAvgMs.toFixed(1)}ms  p95=${k.latencyP95Ms.toFixed(1)}ms  ` +
           `errors=${(k.errorRate * 100).toFixed(1)}%`,
       );
+      if (opts.metrics) {
+        out.log('metrics (final):');
+        printSnaps(await opts.metrics.collector.sample(id));
+      }
     }
   } catch (e) {
-    await controller.down(graph.experimentId);
+    await controller.down(id);
     throw e;
   }
+
   // Real Docker network name = <project>_<key> (Compose prefixes the YAML key with the project name).
   const hint = opts.loadConfig ? '' : '   |   Ctrl-C to tear down';
-  out.log(`network: sds-${graph.experimentId}_sds-${graph.experimentId}-net${hint}`);
-  return graph.experimentId;
+  out.log(`network: sds-${id}_sds-${id}-net${hint}`);
+  return id;
 }
 
 export async function main(argv: string[]): Promise<void> {
   const args = argv.slice(2);
   const keep = args.includes('--keep');
   const load = args.includes('--load');
+  const metricsOn = args.includes('--metrics');
   const runRootIdx = args.indexOf('--run-root');
   const runRoot = runRootIdx >= 0 ? args[runRootIdx + 1] : undefined;
 
@@ -72,25 +110,33 @@ export async function main(argv: string[]): Promise<void> {
   };
   const rate = numFlag('--rate', 50);
   const durationSec = numFlag('--duration', 10);
+  const intervalMs = numFlag('--interval', 1000);
 
-  // Positional graph path: a non-flag token that is not a value consumed by a value-flag.
   const consumed = new Set<number>();
-  for (const f of ['--run-root', '--rate', '--duration']) {
+  for (const f of ['--run-root', '--rate', '--duration', '--interval']) {
     const i = args.indexOf(f);
     if (i >= 0) consumed.add(i + 1);
   }
   const graphPath = args.find((a, i) => !a.startsWith('--') && !consumed.has(i));
   if (!graphPath) {
-    console.error('usage: npm run sim <graph.json> [--load [--rate N] [--duration N]] [--keep] [--run-root <dir>]');
+    console.error(
+      'usage: npm run sim <graph.json> [--load [--rate N] [--duration N]] [--metrics [--interval MS]] [--keep] [--run-root <dir>]',
+    );
     process.exit(1);
     return;
   }
 
   const controller = new ExperimentController(new RealRunner(), { runRoot });
   const out: Logger = { log: (s) => console.log(s), error: (s) => console.error(s) };
-  const opts: SimOptions = load
-    ? { loadConfig: { rate, durationSec }, k6Runner: new K6Runner(new RealRunner()) }
-    : {};
+
+  const opts: SimOptions = {};
+  if (load) {
+    opts.loadConfig = { rate, durationSec };
+    opts.k6Runner = new K6Runner(new RealRunner());
+  }
+  if (metricsOn) {
+    opts.metrics = { collector: new MetricsCollector(new DockerodeStatsSource()), intervalMs };
+  }
 
   let id: string;
   try {
@@ -106,7 +152,6 @@ export async function main(argv: string[]): Promise<void> {
     return;
   }
   if (load) {
-    // One-shot load run: tear down after results.
     console.log('tearing down…');
     await controller.down(id);
     return;
