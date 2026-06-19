@@ -34,7 +34,7 @@ func NewServer(cfg Config, rnd RandSource, metrics *Metrics) *Server {
 	}
 }
 
-// Routes returns the HTTP handler. Uses Go 1.22 method patterns.
+// Routes returns the HTTP handler. Uses Go 1.22+ method patterns.
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /", s.handleRoot)
@@ -64,7 +64,8 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.cfg.UpstreamHTTP != "" {
-		resp, err := s.client.Post(s.cfg.UpstreamHTTP, "application/json", nil)
+		// Body intentionally dropped — this is a traffic simulator, not a proxy.
+		resp, err := s.client.Post(s.cfg.UpstreamHTTP, "application/json", http.NoBody)
 		if err != nil || resp.StatusCode >= 500 {
 			if resp != nil {
 				resp.Body.Close()

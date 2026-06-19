@@ -3,6 +3,9 @@ package main
 import "testing"
 
 func TestFromEnv_Defaults(t *testing.T) {
+	for _, k := range []string{"PORT", "LATENCY_MS", "LATENCY_JITTER_MS", "ERROR_RATE", "UPSTREAM_HTTP"} {
+		t.Setenv(k, "")
+	}
 	cfg, err := FromEnv()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
