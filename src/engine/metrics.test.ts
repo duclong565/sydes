@@ -39,3 +39,38 @@ describe('memMB', () => {
     expect(memMB({ ...sample, memory_stats: {} })).toBe(0);
   });
 });
+
+import { MetricsCollector } from './metrics.js';
+import type { StatsSource, ContainerRef } from './metrics.js';
+
+class FakeStatsSource implements StatsSource {
+  constructor(
+    private containers: ContainerRef[],
+    private statsById: Record<string, DockerStats>,
+  ) {}
+  async list(): Promise<ContainerRef[]> {
+    return this.containers;
+  }
+  async stats(id: string): Promise<DockerStats> {
+    return this.statsById[id]!;
+  }
+}
+
+describe('MetricsCollector.sample', () => {
+  it('returns one snapshot per container with computed cpu/mem', async () => {
+    // c2: cpuDelta=5e5 / sysDelta=1e7 *4*100 = 20 ; mem 9MB
+    const c2: DockerStats = {
+      cpu_stats: { cpu_usage: { total_usage: 1_500_000 }, system_cpu_usage: 100_000_000, online_cpus: 4 },
+      precpu_stats: { cpu_usage: { total_usage: 1_000_000 }, system_cpu_usage: 90_000_000 },
+      memory_stats: { usage: 9 * 1024 * 1024 },
+    };
+    const src = new FakeStatsSource(
+      [{ id: 'c1', name: 'edge-a' }, { id: 'c2', name: 'edge-b' }],
+      { c1: sample, c2 },
+    );
+    const snaps = await new MetricsCollector(src).sample('pair');
+    expect(snaps).toHaveLength(2);
+    expect(snaps[0]).toEqual({ name: 'edge-a', cpuPercent: 40, memMB: 18 });
+    expect(snaps[1]).toEqual({ name: 'edge-b', cpuPercent: 20, memMB: 9 });
+  });
+});

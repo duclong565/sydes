@@ -10,8 +10,12 @@
     "sim": "tsx src/engine/cli.ts"
   },
   "devDependencies": {
+    "@types/dockerode": "^4.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "dockerode": "^5.0.0"
   }
 }
