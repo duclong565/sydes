@@ -38,19 +38,20 @@ describe('compile — valid graph', () => {
 });
 
 describe('compile — duplicate labels', () => {
-  it('fails before per-node validation when two labels collide', () => {
+  it('fails on duplicate labels before per-node validation runs', () => {
     const g: Graph = {
       experimentId: 'e',
       nodes: [
         { id: 'a', type: 'service', label: 'API' },
         { id: 'b', type: 'service', label: 'api' },
       ],
-      edges: [{ source: 'a', target: 'b' }],
+      edges: [], // both orphan services — would each error if per-node validation ran
     };
     const result = compile(g);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors.some((e) => /duplicate/i.test(e.message))).toBe(true);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors.every((e) => /duplicate/i.test(e.message))).toBe(true);
   });
 });
 

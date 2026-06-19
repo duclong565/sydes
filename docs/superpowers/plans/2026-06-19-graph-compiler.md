@@ -547,7 +547,7 @@ git commit -m "feat: add db node handler"
 
 **Interfaces:**
 - Consumes: `NodeHandler` from `types.ts`; `slugify` from `util.ts`.
-- Produces: `kafkaHandler: NodeHandler`. Image `bitnami/kafka:latest`, healthcheck included. Validation error if no publisher (no incoming edge) OR no subscriber (no outgoing edge). A publisher is any node with an edge INTO kafka; a subscriber is any node with an edge OUT of kafka.
+- Produces: `kafkaHandler: NodeHandler`. Image `bitnami/kafka:latest`, healthcheck included. Validation error if no publisher (no incoming edge) OR no subscriber (no outgoing edge). A publisher is any node with an edge INTO kafka; a subscriber is any `worker` node with an edge INTO kafka.
 
 - [ ] **Step 1: Write the failing test**
 

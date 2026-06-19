@@ -11,4 +11,10 @@ describe('slugify', () => {
   it('trims surrounding whitespace', () => {
     expect(slugify('  DB  ')).toBe('db');
   });
+  it('strips non-alphanumeric characters', () => {
+    expect(slugify('Order #1 Service!')).toBe('order-1-service');
+  });
+  it('trims leading and trailing hyphens', () => {
+    expect(slugify('  --Payment--  ')).toBe('payment');
+  });
 });
