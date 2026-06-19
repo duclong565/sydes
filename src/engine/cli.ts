@@ -51,7 +51,7 @@ export async function runSim(
     await controller.down(graph.experimentId);
     throw e;
   }
-  out.log(`network: sds-${graph.experimentId}-net   |   Ctrl-C to tear down`);
+  out.log(`network: sds-${graph.experimentId}_sds-${graph.experimentId}-net   |   Ctrl-C to tear down`);
   return graph.experimentId;
 }
 
