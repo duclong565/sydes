@@ -60,7 +60,7 @@ export async function runSim(
       if (opts.metrics) {
         const m = opts.metrics;
         let settled = false;
-        void k6p.then(() => {}, () => {}).finally(() => { settled = true; });
+        void k6p.finally(() => { settled = true; }).catch(() => {});
         while (!settled) {
           await new Promise((r) => setTimeout(r, m.intervalMs));
           if (settled) break;
