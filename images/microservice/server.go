@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -35,9 +37,39 @@ func NewServer(cfg Config, rnd RandSource, metrics *Metrics) *Server {
 // Routes returns the HTTP handler. Uses Go 1.22 method patterns.
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /", s.handleRoot)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.Handle("GET /metrics", s.metrics.Handler())
 	return mux
+}
+
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	s.metrics.InFlight.Inc()
+	defer s.metrics.InFlight.Dec()
+
+	start := time.Now()
+	defer func() { s.metrics.Duration.Observe(time.Since(start).Seconds()) }()
+
+	_, _ = io.Copy(io.Discard, r.Body)
+
+	delay := s.cfg.LatencyMS
+	if s.cfg.JitterMS > 0 {
+		delay += s.rand.Intn(s.cfg.JitterMS + 1)
+	}
+	time.Sleep(time.Duration(delay) * time.Millisecond)
+
+	if s.rand.Float64() < s.cfg.ErrorRate {
+		s.respond(w, http.StatusInternalServerError, map[string]string{"error": "injected"})
+		return
+	}
+
+	s.respond(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// respond records the status counter then writes the JSON body.
+func (s *Server) respond(w http.ResponseWriter, status int, body any) {
+	s.metrics.Requests.WithLabelValues(strconv.Itoa(status)).Inc()
+	writeJSON(w, status, body)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
