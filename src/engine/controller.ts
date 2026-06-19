@@ -88,7 +88,7 @@ export class ExperimentController {
           .map((p: Record<string, unknown>) => ({
             url: p.URL ? String(p.URL) : '0.0.0.0',
             published: Number(p.PublishedPort),
-            target: Number(p.TargetPort),
+            target: Number(p.TargetPort ?? 0),
           })),
       };
     });

@@ -126,4 +126,14 @@ describe('ExperimentController.status', () => {
     c.writeArtifacts('exp1', { compose: 'x' });
     expect(await c.status('exp1')).toEqual([]);
   });
+
+  it('parses a single JSON object form of ps output', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    runner.responses = [{ code: 0, stdout: '{"Name":"x","State":"exited","Health":"","Publishers":[]}', stderr: '' }];
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    const st = await c.status('exp1');
+    expect(st).toEqual([{ name: 'x', state: 'exited', health: undefined, publishers: [] }]);
+  });
 });
