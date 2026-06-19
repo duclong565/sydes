@@ -95,3 +95,35 @@ func TestRoot_RecordsMetric(t *testing.T) {
 		t.Errorf("metric not recorded:\n%s", mrec.Body.String())
 	}
 }
+
+func TestRoot_UpstreamHappy(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	s := newTestServer(Config{UpstreamHTTP: upstream.URL}, stubRand{float: 1.0})
+	if rec := post(s); rec.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200", rec.Code)
+	}
+}
+
+func TestRoot_UpstreamCascade(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer upstream.Close()
+
+	s := newTestServer(Config{UpstreamHTTP: upstream.URL}, stubRand{float: 1.0})
+	if rec := post(s); rec.Code != http.StatusBadGateway {
+		t.Fatalf("got %d, want 502", rec.Code)
+	}
+}
+
+func TestRoot_UpstreamDown(t *testing.T) {
+	// 127.0.0.1:1 refuses immediately — well under the 2s timeout.
+	s := newTestServer(Config{UpstreamHTTP: "http://127.0.0.1:1"}, stubRand{float: 1.0})
+	if rec := post(s); rec.Code != http.StatusBadGateway {
+		t.Fatalf("got %d, want 502", rec.Code)
+	}
+}

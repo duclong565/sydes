@@ -63,6 +63,18 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.cfg.UpstreamHTTP != "" {
+		resp, err := s.client.Post(s.cfg.UpstreamHTTP, "application/json", nil)
+		if err != nil || resp.StatusCode >= 500 {
+			if resp != nil {
+				resp.Body.Close()
+			}
+			s.respond(w, http.StatusBadGateway, map[string]string{"error": "upstream"})
+			return
+		}
+		resp.Body.Close()
+	}
+
 	s.respond(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
