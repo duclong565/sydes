@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { cpuPercent, memMB } from './metrics.js';
-import type { DockerStats } from './metrics.js';
+import { cpuPercent, memMB, MetricsCollector } from './metrics.js';
+import type { DockerStats, StatsSource, ContainerRef } from './metrics.js';
 
 // cpuDelta = 2e6-1e6 = 1e6 ; sysDelta = 1e8-9e7 = 1e7 ; cpus=4 -> (1e6/1e7)*4*100 = 40
 export const sample: DockerStats = {
@@ -39,9 +39,6 @@ describe('memMB', () => {
     expect(memMB({ ...sample, memory_stats: {} })).toBe(0);
   });
 });
-
-import { MetricsCollector } from './metrics.js';
-import type { StatsSource, ContainerRef } from './metrics.js';
 
 class FakeStatsSource implements StatsSource {
   constructor(
