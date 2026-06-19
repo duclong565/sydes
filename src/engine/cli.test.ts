@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { runSim } from './cli.js';
 import { ExperimentController } from './controller.js';
 import type { Runner, RunResult } from './runner.js';
+import type { K6Result } from './k6-runner.js';
 
 /** Returns canned ps output for `ps`, success for everything else. */
 class StubRunner implements Runner {
@@ -49,7 +50,7 @@ describe('runSim', () => {
     const id = await runSim(tmpGraph(pairGraph), c, out);
     expect(id).toBe('pair');
     expect(out.lines.some((l) => l.includes('sds-pair-edge-a-1'))).toBe(true);
-    expect(out.lines.some((l) => l.includes('sds-pair-net'))).toBe(true);
+    expect(out.lines.some((l) => l.includes('sds-pair_sds-pair-net'))).toBe(true);
   });
 
   it('throws and reports compile errors for an invalid graph', async () => {
@@ -73,5 +74,35 @@ describe('runSim', () => {
     const c = new ExperimentController(failUpRunner, { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
     await expect(runSim(tmpGraph(pairGraph), c, out)).rejects.toThrow(/kafka never healthy/);
     expect(calls.some((a) => a.includes('down'))).toBe(true);
+  });
+});
+
+class StubK6 {
+  ran = false;
+  async run(_experimentId: string, _runDir: string): Promise<K6Result> {
+    this.ran = true;
+    return { requests: 100, rps: 10, latencyAvgMs: 5, latencyP95Ms: 9, errorRate: 0 };
+  }
+}
+
+describe('runSim with load', () => {
+  it('runs k6 and prints the load result when loadConfig + k6Runner are given', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const k6 = new StubK6();
+    await runSim(tmpGraph(pairGraph), c, out, {
+      loadConfig: { rate: 20, durationSec: 3 },
+      k6Runner: k6,
+    });
+    expect(k6.ran).toBe(true);
+    expect(out.lines.some((l) => l.includes('load: requests=100'))).toBe(true);
+  });
+
+  it('does not run k6 when no loadConfig is given', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const k6 = new StubK6();
+    await runSim(tmpGraph(pairGraph), c, out, { k6Runner: k6 });
+    expect(k6.ran).toBe(false);
   });
 });
