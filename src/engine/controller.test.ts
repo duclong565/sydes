@@ -83,3 +83,47 @@ describe('ExperimentController.up / down', () => {
     ]);
   });
 });
+
+describe('ExperimentController.status', () => {
+  it('parses NDJSON ps output into ServiceStatus[]', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    runner.responses = [{
+      code: 0,
+      stdout:
+        '{"Name":"sds-exp1-edge-1","State":"running","Health":"","Publishers":[]}\n' +
+        '{"Name":"sds-exp1-db-1","State":"running","Health":"healthy","Publishers":[{"URL":"0.0.0.0","PublishedPort":5432,"TargetPort":5432}]}\n',
+      stderr: '',
+    }];
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    const st = await c.status('exp1');
+    expect(st).toHaveLength(2);
+    expect(st[0]).toEqual({ name: 'sds-exp1-edge-1', state: 'running', health: undefined, publishers: [] });
+    expect(st[1]!.health).toBe('healthy');
+    expect(st[1]!.publishers).toEqual([{ url: '0.0.0.0', published: 5432, target: 5432 }]);
+  });
+
+  it('parses a JSON array form of ps output', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    runner.responses = [{
+      code: 0,
+      stdout: '[{"Name":"a","State":"running","Publishers":null}]',
+      stderr: '',
+    }];
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    const st = await c.status('exp1');
+    expect(st).toEqual([{ name: 'a', state: 'running', health: undefined, publishers: [] }]);
+  });
+
+  it('returns [] for empty output', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    runner.responses = [{ code: 0, stdout: '\n', stderr: '' }];
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    expect(await c.status('exp1')).toEqual([]);
+  });
+});

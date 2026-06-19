@@ -60,4 +60,37 @@ export class ExperimentController {
   async down(id: string): Promise<void> {
     await this.runner.run([...this.baseArgs(id), 'down', '-v', '--remove-orphans']);
   }
+
+  /** Returns current container status. Tolerates array / single-object / NDJSON ps output. */
+  async status(id: string): Promise<ServiceStatus[]> {
+    const r = await this.runner.run([...this.baseArgs(id), 'ps', '--format', 'json']);
+    const out = r.stdout.trim();
+    if (!out) return [];
+    let rows: Array<Record<string, unknown>>;
+    try {
+      const parsed = JSON.parse(out);
+      rows = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      rows = out
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+    }
+    return rows.map((row) => {
+      const pubs = Array.isArray(row.Publishers) ? row.Publishers : [];
+      return {
+        name: String(row.Name),
+        state: String(row.State),
+        health: row.Health ? String(row.Health) : undefined,
+        publishers: pubs
+          .filter((p: Record<string, unknown>) => p.PublishedPort)
+          .map((p: Record<string, unknown>) => ({
+            url: p.URL ? String(p.URL) : '0.0.0.0',
+            published: Number(p.PublishedPort),
+            target: Number(p.TargetPort),
+          })),
+      };
+    });
+  }
 }
