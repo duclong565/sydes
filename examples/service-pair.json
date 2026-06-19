@@ -1,0 +1,8 @@
+{
+  "experimentId": "pair",
+  "nodes": [
+    { "id": "a", "type": "service", "label": "Edge A" },
+    { "id": "b", "type": "service", "label": "Edge B" }
+  ],
+  "edges": [{ "source": "a", "target": "b" }]
+}
