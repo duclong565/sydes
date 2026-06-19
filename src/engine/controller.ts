@@ -39,4 +39,25 @@ export class ExperimentController {
     if (output.k6) writeFileSync(join(d, 'load.js'), output.k6);
     return d;
   }
+
+  private composePath(id: string): string {
+    return join(this.dir(id), 'compose.yml');
+  }
+
+  private baseArgs(id: string): string[] {
+    return ['docker', 'compose', '-p', `sds-${id}`, '-f', this.composePath(id)];
+  }
+
+  /** Brings the stack up and blocks until healthchecked services are healthy. */
+  async up(id: string): Promise<void> {
+    const r = await this.runner.run([...this.baseArgs(id), 'up', '-d', '--wait']);
+    if (r.code !== 0) {
+      throw new Error(`docker compose up failed (exit ${r.code}): ${r.stderr.trim()}`);
+    }
+  }
+
+  /** Tears down the stack and its volumes. Idempotent. */
+  async down(id: string): Promise<void> {
+    await this.runner.run([...this.baseArgs(id), 'down', '-v', '--remove-orphans']);
+  }
 }

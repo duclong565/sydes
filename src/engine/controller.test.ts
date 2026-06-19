@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { resolve as resolvePath } from 'node:path';
 import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +11,7 @@ class FakeRunner implements Runner {
   calls: string[][] = [];
   responses: RunResult[] = [];
   default: RunResult = { code: 0, stdout: '', stderr: '' };
-  async run(argv: string[]): Promise<RunResult> {
+  async run(argv: string[], _opts?: { cwd?: string }): Promise<RunResult> {
     this.calls.push(argv);
     return this.responses.shift() ?? this.default;
   }
@@ -43,5 +44,42 @@ describe('ExperimentController.writeArtifacts', () => {
     const dir = c.writeArtifacts('exp2', { compose: 'x', nginx: 'upstream {}', k6: 'export default(){}' });
     expect(readFileSync(join(dir, 'nginx.conf'), 'utf8')).toBe('upstream {}');
     expect(readFileSync(join(dir, 'load.js'), 'utf8')).toBe('export default(){}');
+  });
+});
+
+describe('ExperimentController.up / down', () => {
+  it('up builds the compose up --wait argv', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    await c.up('exp1');
+    expect(runner.calls.at(-1)).toEqual([
+      'docker', 'compose', '-p', 'sds-exp1',
+      '-f', resolvePath(root, 'exp1', 'compose.yml'),
+      'up', '-d', '--wait',
+    ]);
+  });
+
+  it('up throws with stderr on non-zero exit', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    runner.responses = [{ code: 1, stdout: '', stderr: 'kafka unhealthy' }];
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    await expect(c.up('exp1')).rejects.toThrow(/kafka unhealthy/);
+  });
+
+  it('down builds the compose down -v argv', async () => {
+    const root = freshRoot();
+    const runner = new FakeRunner();
+    const c = new ExperimentController(runner, { runRoot: root });
+    c.writeArtifacts('exp1', { compose: 'x' });
+    await c.down('exp1');
+    expect(runner.calls.at(-1)).toEqual([
+      'docker', 'compose', '-p', 'sds-exp1',
+      '-f', resolvePath(root, 'exp1', 'compose.yml'),
+      'down', '-v', '--remove-orphans',
+    ]);
   });
 });
