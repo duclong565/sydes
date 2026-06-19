@@ -59,4 +59,19 @@ describe('runSim', () => {
     await expect(runSim(tmpGraph(orphan), c, out)).rejects.toThrow(/compile failed/);
     expect(out.errors.some((e) => /Orphan|edge/i.test(e))).toBe(true);
   });
+
+  it('tears down the partial stack when up fails', async () => {
+    const calls: string[][] = [];
+    const failUpRunner: Runner = {
+      async run(argv: string[]) {
+        calls.push(argv);
+        if (argv.includes('up')) return { code: 1, stdout: '', stderr: 'kafka never healthy' };
+        return { code: 0, stdout: '', stderr: '' };
+      },
+    };
+    const out = new CapturingLogger();
+    const c = new ExperimentController(failUpRunner, { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    await expect(runSim(tmpGraph(pairGraph), c, out)).rejects.toThrow(/kafka never healthy/);
+    expect(calls.some((a) => a.includes('down'))).toBe(true);
+  });
 });

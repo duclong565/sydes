@@ -21,10 +21,16 @@ export async function runSim(graphPath: string, controller: ExperimentController
   await controller.preflight(result.output);
   controller.writeArtifacts(graph.experimentId, result.output);
   out.log(`⏳ warming up ${graph.experimentId} (kafka cold start ~5-10s if present)…`);
-  await controller.up(graph.experimentId);
-  for (const s of await controller.status(graph.experimentId)) {
-    const ports = s.publishers.map((p) => `${p.published}->${p.target}`).join(', ') || '-';
-    out.log(`  ${s.name}  ${s.state}${s.health ? '/' + s.health : ''}  ports:${ports}`);
+  try {
+    await controller.up(graph.experimentId);
+    for (const s of await controller.status(graph.experimentId)) {
+      const ports = s.publishers.map((p) => `${p.published}->${p.target}`).join(', ') || '-';
+      out.log(`  ${s.name}  ${s.state}${s.health ? '/' + s.health : ''}  ports:${ports}`);
+    }
+  } catch (e) {
+    // Always tear down a partial stack so a failed warmup doesn't leak containers.
+    await controller.down(graph.experimentId);
+    throw e;
   }
   out.log(`network: sds-${graph.experimentId}-net   |   Ctrl-C to tear down`);
   return graph.experimentId;
