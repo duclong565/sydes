@@ -1,0 +1,12 @@
+{
+  "experimentId": "lbdemo",
+  "nodes": [
+    { "id": "lb", "type": "lb", "label": "Gateway" },
+    { "id": "s1", "type": "service", "label": "Svc One" },
+    { "id": "s2", "type": "service", "label": "Svc Two" }
+  ],
+  "edges": [
+    { "source": "lb", "target": "s1" },
+    { "source": "lb", "target": "s2" }
+  ]
+}

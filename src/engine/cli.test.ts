@@ -1,0 +1,62 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runSim } from './cli.js';
+import { ExperimentController } from './controller.js';
+import type { Runner, RunResult } from './runner.js';
+
+/** Returns canned ps output for `ps`, success for everything else. */
+class StubRunner implements Runner {
+  async run(argv: string[]): Promise<RunResult> {
+    if (argv.includes('ps')) {
+      return { code: 0, stdout: '{"Name":"sds-pair-edge-a-1","State":"running","Publishers":[]}', stderr: '' };
+    }
+    return { code: 0, stdout: '', stderr: '' };
+  }
+}
+
+class CapturingLogger {
+  lines: string[] = [];
+  errors: string[] = [];
+  log(s: string) { this.lines.push(s); }
+  error(s: string) { this.errors.push(s); }
+}
+
+const tmpDirs: string[] = [];
+function tmpGraph(obj: unknown): string {
+  const d = mkdtempSync(join(tmpdir(), 'sds-cli-'));
+  tmpDirs.push(d);
+  const p = join(d, 'graph.json');
+  writeFileSync(p, JSON.stringify(obj));
+  return p;
+}
+afterEach(() => { for (const d of tmpDirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
+
+const pairGraph = {
+  experimentId: 'pair',
+  nodes: [
+    { id: 'a', type: 'service', label: 'Edge A' },
+    { id: 'b', type: 'service', label: 'Edge B' },
+  ],
+  edges: [{ source: 'a', target: 'b' }],
+};
+
+describe('runSim', () => {
+  it('compiles, ups, and prints status; returns experimentId', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const id = await runSim(tmpGraph(pairGraph), c, out);
+    expect(id).toBe('pair');
+    expect(out.lines.some((l) => l.includes('sds-pair-edge-a-1'))).toBe(true);
+    expect(out.lines.some((l) => l.includes('sds-pair-net'))).toBe(true);
+  });
+
+  it('throws and reports compile errors for an invalid graph', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const orphan = { experimentId: 'bad', nodes: [{ id: 's', type: 'service', label: 'Orphan' }], edges: [] };
+    await expect(runSim(tmpGraph(orphan), c, out)).rejects.toThrow(/compile failed/);
+    expect(out.errors.some((e) => /Orphan|edge/i.test(e))).toBe(true);
+  });
+});
