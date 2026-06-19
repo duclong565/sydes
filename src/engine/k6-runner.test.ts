@@ -57,7 +57,7 @@ describe('K6Runner.run', () => {
     const runner = new FakeRunner();
     const result = await new K6Runner(runner).run('exp1', dir);
     expect(runner.calls[0]).toEqual([
-      'docker', 'run', '--rm', '--network', 'sds-exp1-net',
+      'docker', 'run', '--rm', '--network', 'sds-exp1_sds-exp1-net',
       '-v', `${dir}:/sds`,
       'grafana/k6', 'run', '--summary-export=/sds/summary.json', '/sds/load.js',
     ]);
