@@ -98,3 +98,24 @@ describe('compile — load balancer', () => {
     expect(result.output.k6).toContain('http://gateway:80/');
   });
 });
+
+describe('compile — load balancer volumes', () => {
+  it('emits the nginx config mount on the lb service', () => {
+    const g: Graph = {
+      experimentId: 'lbv',
+      nodes: [
+        { id: 'lb', type: 'lb', label: 'Gateway' },
+        { id: 's1', type: 'service', label: 'Svc One' },
+        { id: 's2', type: 'service', label: 'Svc Two' },
+      ],
+      edges: [
+        { source: 'lb', target: 's1' },
+        { source: 'lb', target: 's2' },
+      ],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.output.compose).toContain('./nginx.conf:/etc/nginx/conf.d/default.conf:ro');
+  });
+});
