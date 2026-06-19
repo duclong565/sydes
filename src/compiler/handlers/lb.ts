@@ -11,6 +11,12 @@ export const lbHandler: NodeHandler = {
       : [{ nodeId: node.id, message: 'Load balancer requires at least 2 service upstreams' }];
   },
   compile(node) {
-    return { name: slugify(node.label), image: 'nginx:alpine', environment: {}, ports: ['80:80'] };
+    return {
+      name: slugify(node.label),
+      image: 'nginx:alpine',
+      environment: {},
+      ports: ['80:80'],
+      volumes: ['./nginx.conf:/etc/nginx/conf.d/default.conf:ro'],
+    };
   },
 };

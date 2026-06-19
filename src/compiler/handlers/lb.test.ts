@@ -37,3 +37,11 @@ describe('lbHandler.compile', () => {
     expect(svc.ports).toEqual(['80:80']);
   });
 });
+
+describe('lbHandler.compile volumes', () => {
+  it('mounts the generated nginx config into the container', () => {
+    const g: Graph = { experimentId: 'e', nodes: [{ id: 'lb', type: 'lb', label: 'Gateway LB' }], edges: [] };
+    const svc = lbHandler.compile(g.nodes[0]!, buildIndex(g));
+    expect(svc.volumes).toEqual(['./nginx.conf:/etc/nginx/conf.d/default.conf:ro']);
+  });
+});

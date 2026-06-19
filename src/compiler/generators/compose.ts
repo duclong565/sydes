@@ -14,6 +14,10 @@ export function generateCompose(services: ComposeService[], networkName: string)
       lines.push('    ports:');
       for (const port of svc.ports) lines.push(`      - "${port}"`);
     }
+    if (svc.volumes && svc.volumes.length > 0) {
+      lines.push('    volumes:');
+      for (const vol of svc.volumes) lines.push(`      - "${vol}"`);
+    }
     if (svc.healthcheck) {
       const test = svc.healthcheck.test.map((t) => `"${t}"`).join(', ');
       lines.push('    healthcheck:');
