@@ -6,6 +6,7 @@ import { runSim } from './cli.js';
 import { ExperimentController } from './controller.js';
 import type { Runner, RunResult } from './runner.js';
 import type { K6Result } from './k6-runner.js';
+import type { MetricsSnapshot } from './metrics.js';
 
 /** Returns canned ps output for `ps`, success for everything else. */
 class StubRunner implements Runner {
@@ -104,5 +105,38 @@ describe('runSim with load', () => {
     const k6 = new StubK6();
     await runSim(tmpGraph(pairGraph), c, out, { k6Runner: k6 });
     expect(k6.ran).toBe(false);
+  });
+});
+
+class StubCollector {
+  calls = 0;
+  async sample(_experimentId: string): Promise<MetricsSnapshot[]> {
+    this.calls++;
+    return [{ name: 'edge-a', cpuPercent: 12.5, memMB: 8 }];
+  }
+}
+
+describe('runSim with metrics', () => {
+  it('prints a baseline metrics sample when metrics is set (no load)', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const col = new StubCollector();
+    await runSim(tmpGraph(pairGraph), c, out, { metrics: { collector: col, intervalMs: 10 } });
+    expect(col.calls).toBeGreaterThanOrEqual(1);
+    expect(out.lines.some((l) => l.includes('cpu 12.5%'))).toBe(true);
+  });
+
+  it('samples metrics during a load run', async () => {
+    const out = new CapturingLogger();
+    const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
+    const col = new StubCollector();
+    const k6 = new StubK6();
+    await runSim(tmpGraph(pairGraph), c, out, {
+      loadConfig: { rate: 20, durationSec: 3 },
+      k6Runner: k6,
+      metrics: { collector: col, intervalMs: 10 },
+    });
+    expect(k6.ran).toBe(true);
+    expect(col.calls).toBeGreaterThanOrEqual(1);
   });
 });
