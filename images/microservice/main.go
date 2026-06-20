@@ -20,7 +20,7 @@ func main() {
 
 	metrics := NewMetrics()
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	srv := NewServer(cfg, rnd, metrics)
+	srv := NewServer(cfg, rnd, metrics, nil)
 
 	httpSrv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),

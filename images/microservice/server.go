@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,22 +17,30 @@ type RandSource interface {
 	Intn(n int) int
 }
 
+// Publisher publishes one event per successful request when configured.
+// Injected so tests can use a fake.
+type Publisher interface {
+	Publish(ctx context.Context, value []byte) error
+}
+
 // Server wires config, randomness, metrics, and an upstream HTTP client into the
 // request handlers.
 type Server struct {
-	cfg     Config
-	rand    RandSource
-	metrics *Metrics
-	client  *http.Client
+	cfg       Config
+	rand      RandSource
+	metrics   *Metrics
+	client    *http.Client
+	publisher Publisher
 }
 
 // NewServer constructs a Server with a 2s upstream timeout.
-func NewServer(cfg Config, rnd RandSource, metrics *Metrics) *Server {
+func NewServer(cfg Config, rnd RandSource, metrics *Metrics, publisher Publisher) *Server {
 	return &Server{
-		cfg:     cfg,
-		rand:    rnd,
-		metrics: metrics,
-		client:  &http.Client{Timeout: 2 * time.Second},
+		cfg:       cfg,
+		rand:      rnd,
+		metrics:   metrics,
+		client:    &http.Client{Timeout: 2 * time.Second},
+		publisher: publisher,
 	}
 }
 
@@ -74,6 +84,16 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.Body.Close()
+	}
+
+	if s.publisher != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		payload := []byte(fmt.Sprintf(`{"ts":%d}`, time.Now().UnixMilli()))
+		if err := s.publisher.Publish(ctx, payload); err != nil {
+			s.respond(w, http.StatusServiceUnavailable, map[string]string{"error": "publish"})
+			return
+		}
 	}
 
 	s.respond(w, http.StatusOK, map[string]bool{"ok": true})
