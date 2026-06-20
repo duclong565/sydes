@@ -1,8 +1,21 @@
 # Compiler Kafka Wiring (Saga brick 2a) — Design
 
-> **Status:** Approved design, ready for implementation plan.
+> **Status:** Implemented (with a mid-build correction — see below).
 > **Date:** 2026-06-20
 > **Depends on:** Graph Compiler (handlers for kafka/service/worker), `sds/microservice` Kafka publish (brick 1 — needs `KAFKA_BROKER`).
+>
+> **Correction (2026-06-20, during implementation):** `bitnami/kafka:latest` was
+> found to be **removed from Docker Hub** (404). Empirically verified the
+> replacement: the kafka handler now emits **`apache/kafka:latest`** with the
+> apache **`KAFKA_*`** env convention (NOT `KAFKA_CFG_*`) and a healthcheck using
+> the full path **`/opt/kafka/bin/kafka-topics.sh`** (the script is not on PATH in
+> that image). No `ALLOW_PLAINTEXT_LISTENER` is needed — apache/kafka boots clean
+> with PLAINTEXT. The env keys/values below are otherwise the same listener set,
+> just renamed (e.g. `KAFKA_NODE_ID`, `KAFKA_PROCESS_ROLES=broker,controller`,
+> `KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://<name>:9092`,
+> `KAFKA_CONTROLLER_QUORUM_VOTERS=0@<name>:9093`). `service`/`worker`
+> `KAFKA_BROKER=<name>:9092` is unchanged. The `kafka.ts` source is the source of
+> truth; brick 2b should reference it.
 
 ## Goal
 
