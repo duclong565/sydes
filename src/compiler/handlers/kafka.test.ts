@@ -53,3 +53,18 @@ describe('kafkaHandler.compile', () => {
     expect(svc.healthcheck!.retries).toBeGreaterThan(0);
   });
 });
+
+describe('kafkaHandler.compile KRaft config', () => {
+  it('emits a single-node KRaft listener config', () => {
+    const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Event Bus' }], edges: [] };
+    const env = kafkaHandler.compile(g.nodes[0]!, buildIndex(g)).environment;
+    expect(env.KAFKA_CFG_NODE_ID).toBe('0');
+    expect(env.KAFKA_CFG_PROCESS_ROLES).toBe('controller,broker');
+    expect(env.KAFKA_CFG_CONTROLLER_QUORUM_VOTERS).toBe('0@event-bus:9093');
+    expect(env.KAFKA_CFG_LISTENERS).toBe('PLAINTEXT://:9092,CONTROLLER://:9093');
+    expect(env.KAFKA_CFG_ADVERTISED_LISTENERS).toBe('PLAINTEXT://event-bus:9092');
+    expect(env.KAFKA_CFG_CONTROLLER_LISTENER_NAMES).toBe('CONTROLLER');
+    expect(env.KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP).toBe('CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT');
+    expect(env.KAFKA_CFG_INTER_BROKER_LISTENER_NAME).toBe('PLAINTEXT');
+  });
+});
