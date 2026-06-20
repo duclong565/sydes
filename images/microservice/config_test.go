@@ -63,3 +63,35 @@ func TestFromEnv_IgnoresUnknown(t *testing.T) {
 		t.Fatalf("unknown envs must be ignored: %v", err)
 	}
 }
+
+func TestFromEnv_KafkaValid(t *testing.T) {
+	t.Setenv("KAFKA_BROKER", "kafka:9092")
+	t.Setenv("PUBLISH_TOPIC", "order-events")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.KafkaBroker != "kafka:9092" || cfg.PublishTopic != "order-events" {
+		t.Errorf("kafka cfg = %+v", cfg)
+	}
+}
+
+func TestFromEnv_PublishTopicWithoutBroker(t *testing.T) {
+	t.Setenv("KAFKA_BROKER", "")
+	t.Setenv("PUBLISH_TOPIC", "order-events")
+	if _, err := FromEnv(); err == nil {
+		t.Fatal("expected error: PUBLISH_TOPIC set without KAFKA_BROKER")
+	}
+}
+
+func TestFromEnv_NoKafka(t *testing.T) {
+	t.Setenv("KAFKA_BROKER", "")
+	t.Setenv("PUBLISH_TOPIC", "")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.KafkaBroker != "" || cfg.PublishTopic != "" {
+		t.Errorf("expected empty kafka cfg, got %+v", cfg)
+	}
+}
