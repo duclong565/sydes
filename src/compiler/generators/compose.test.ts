@@ -26,7 +26,7 @@ describe('generateCompose', () => {
     const services: ComposeService[] = [
       {
         name: 'events',
-        image: 'bitnami/kafka:latest',
+        image: 'apache/kafka:latest',
         environment: {},
         healthcheck: { test: ['CMD-SHELL', 'check || exit 1'], interval: '5s', timeout: '5s', retries: 10 },
       },

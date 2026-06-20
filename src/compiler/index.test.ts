@@ -116,7 +116,7 @@ describe('compile — saga kafka wiring', () => {
     const result = compile(g);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.output.compose).toContain('KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://order-events:9092"');
+    expect(result.output.compose).toContain('KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://order-events:9092"');
     expect(result.output.compose).toContain('KAFKA_BROKER: "order-events:9092"');
   });
 });
