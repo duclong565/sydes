@@ -14,6 +14,8 @@ type Config struct {
 	JitterMS     int
 	ErrorRate    float64
 	UpstreamHTTP string
+	KafkaBroker  string // e.g. "kafka:9092"
+	PublishTopic string // e.g. "order-events"
 }
 
 // FromEnv parses configuration from environment variables, applying defaults
@@ -56,6 +58,12 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("UPSTREAM_HTTP must be a valid URL, got %q", v)
 		}
 		cfg.UpstreamHTTP = v
+	}
+
+	cfg.KafkaBroker = os.Getenv("KAFKA_BROKER")
+	cfg.PublishTopic = os.Getenv("PUBLISH_TOPIC")
+	if cfg.PublishTopic != "" && cfg.KafkaBroker == "" {
+		return Config{}, fmt.Errorf("PUBLISH_TOPIC set but KAFKA_BROKER is empty")
 	}
 
 	return cfg, nil

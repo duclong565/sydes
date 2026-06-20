@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +20,7 @@ func (s stubRand) Float64() float64 { return s.float }
 func (s stubRand) Intn(n int) int   { return s.intn }
 
 func newTestServer(cfg Config, rnd RandSource) *Server {
-	return NewServer(cfg, rnd, NewMetrics())
+	return NewServer(cfg, rnd, NewMetrics(), nil)
 }
 
 func TestHealth(t *testing.T) {
@@ -85,7 +87,7 @@ func TestRoot_Latency(t *testing.T) {
 
 func TestRoot_RecordsMetric(t *testing.T) {
 	m := NewMetrics()
-	s := NewServer(Config{}, stubRand{float: 1.0}, m)
+	s := NewServer(Config{}, stubRand{float: 1.0}, m, nil)
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	s.Routes().ServeHTTP(httptest.NewRecorder(), req)
 
@@ -125,5 +127,66 @@ func TestRoot_UpstreamDown(t *testing.T) {
 	s := newTestServer(Config{UpstreamHTTP: "http://127.0.0.1:1"}, stubRand{float: 1.0})
 	if rec := post(s); rec.Code != http.StatusBadGateway {
 		t.Fatalf("got %d, want 502", rec.Code)
+	}
+}
+
+type fakePublisher struct {
+	calls     int
+	lastValue []byte
+	err       error
+}
+
+func (f *fakePublisher) Publish(_ context.Context, value []byte) error {
+	f.calls++
+	f.lastValue = append([]byte(nil), value...)
+	return f.err
+}
+
+func TestRoot_PublishesOnSuccess(t *testing.T) {
+	pub := &fakePublisher{}
+	s := NewServer(Config{}, stubRand{float: 1.0}, NewMetrics(), pub)
+	rec := post(s)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200", rec.Code)
+	}
+	if pub.calls != 1 {
+		t.Fatalf("publisher calls = %d, want 1", pub.calls)
+	}
+	if !strings.Contains(string(pub.lastValue), `"ts"`) {
+		t.Errorf("payload missing ts: %s", pub.lastValue)
+	}
+}
+
+func TestRoot_PublishFailureReturns503(t *testing.T) {
+	pub := &fakePublisher{err: errors.New("broker down")}
+	s := NewServer(Config{}, stubRand{float: 1.0}, NewMetrics(), pub)
+	if rec := post(s); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got %d, want 503", rec.Code)
+	}
+}
+
+func TestRoot_NoPublishOnInjectedError(t *testing.T) {
+	pub := &fakePublisher{}
+	s := NewServer(Config{ErrorRate: 1.0}, stubRand{float: 0.0}, NewMetrics(), pub)
+	if rec := post(s); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("got %d, want 500", rec.Code)
+	}
+	if pub.calls != 0 {
+		t.Errorf("publisher should not be called on injected error, got %d", pub.calls)
+	}
+}
+
+func TestRoot_NoPublishOnUpstreamCascade(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer upstream.Close()
+	pub := &fakePublisher{}
+	s := NewServer(Config{UpstreamHTTP: upstream.URL}, stubRand{float: 1.0}, NewMetrics(), pub)
+	if rec := post(s); rec.Code != http.StatusBadGateway {
+		t.Fatalf("got %d, want 502", rec.Code)
+	}
+	if pub.calls != 0 {
+		t.Errorf("publisher should not be called on upstream cascade, got %d", pub.calls)
 	}
 }
