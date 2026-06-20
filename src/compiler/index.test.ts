@@ -99,6 +99,28 @@ describe('compile — load balancer', () => {
   });
 });
 
+describe('compile — saga kafka wiring', () => {
+  it('wires KRaft config + KAFKA_BROKER for a service->kafka<-worker graph', () => {
+    const g: Graph = {
+      experimentId: 'saga',
+      nodes: [
+        { id: 'o', type: 'service', label: 'Order Service' },
+        { id: 'k', type: 'kafka', label: 'Order Events' },
+        { id: 'p', type: 'worker', label: 'Payment Worker' },
+      ],
+      edges: [
+        { source: 'o', target: 'k' },
+        { source: 'p', target: 'k' },
+      ],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.output.compose).toContain('KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://order-events:9092"');
+    expect(result.output.compose).toContain('KAFKA_BROKER: "order-events:9092"');
+  });
+});
+
 describe('compile — load balancer volumes', () => {
   it('emits the nginx config mount on the lb service', () => {
     const g: Graph = {

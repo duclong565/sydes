@@ -42,3 +42,19 @@ describe('workerHandler.compile', () => {
     expect(svc.environment.DB_URL).toBe('postgres://pay-db:5432');
   });
 });
+
+describe('workerHandler.compile kafka broker', () => {
+  it('emits KAFKA_BROKER on a worker->kafka edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'w', type: 'worker', label: 'Payment Worker' },
+        { id: 'k', type: 'kafka', label: 'Order Events' },
+      ],
+      edges: [{ source: 'w', target: 'k' }],
+    };
+    const env = workerHandler.compile(g.nodes[0]!, buildIndex(g)).environment;
+    expect(env.SUBSCRIBE_TOPICS).toBe('order-events');
+    expect(env.KAFKA_BROKER).toBe('order-events:9092');
+  });
+});

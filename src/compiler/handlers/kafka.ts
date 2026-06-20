@@ -14,15 +14,25 @@ export const kafkaHandler: NodeHandler = {
     return errors;
   },
   compile(node) {
+    const name = slugify(node.label);
     return {
-      name: slugify(node.label),
-      image: 'bitnami/kafka:latest',
-      environment: { KAFKA_CFG_NODE_ID: '0', KAFKA_CFG_PROCESS_ROLES: 'controller,broker' },
+      name,
+      image: 'apache/kafka:latest',
+      environment: {
+        KAFKA_NODE_ID: '0',
+        KAFKA_PROCESS_ROLES: 'broker,controller',
+        KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093',
+        KAFKA_ADVERTISED_LISTENERS: `PLAINTEXT://${name}:9092`,
+        KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER',
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT',
+        KAFKA_CONTROLLER_QUORUM_VOTERS: `0@${name}:9093`,
+        KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT',
+      },
       healthcheck: {
-        test: ['CMD-SHELL', 'kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1'],
+        test: ['CMD-SHELL', '/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1'],
         interval: '5s',
-        timeout: '5s',
-        retries: 10,
+        timeout: '10s',
+        retries: 15,
       },
     };
   },
