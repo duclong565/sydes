@@ -20,7 +20,14 @@ func main() {
 
 	metrics := NewMetrics()
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	srv := NewServer(cfg, rnd, metrics, nil)
+
+	var publisher Publisher
+	if cfg.PublishTopic != "" {
+		kp := NewKafkaPublisher(cfg.KafkaBroker, cfg.PublishTopic)
+		defer kp.Close()
+		publisher = kp
+	}
+	srv := NewServer(cfg, rnd, metrics, publisher)
 
 	httpSrv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
