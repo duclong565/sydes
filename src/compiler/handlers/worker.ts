@@ -16,7 +16,10 @@ export const workerHandler: NodeHandler = {
     for (const edge of index.outEdges(node.id)) {
       const target = index.nodeMap.get(edge.target);
       if (!target) continue;
-      if (target.type === 'kafka') topics.push(slugify(target.label));
+      if (target.type === 'kafka') {
+        topics.push(slugify(target.label));
+        env.KAFKA_BROKER = `${slugify(target.label)}:9092`;
+      }
       if (target.type === 'db') env.DB_URL = `postgres://${slugify(target.label)}:5432`;
     }
     env.SUBSCRIBE_TOPICS = topics.join(',');

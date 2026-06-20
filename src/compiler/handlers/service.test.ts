@@ -44,3 +44,19 @@ describe('serviceHandler.compile', () => {
     expect(svc.environment.PUBLISH_TOPIC).toBe('events');
   });
 });
+
+describe('serviceHandler.compile kafka broker', () => {
+  it('emits KAFKA_BROKER on a service->kafka edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 's', type: 'service', label: 'Order' },
+        { id: 'k', type: 'kafka', label: 'Events' },
+      ],
+      edges: [{ source: 's', target: 'k' }],
+    };
+    const env = serviceHandler.compile(g.nodes[0]!, buildIndex(g)).environment;
+    expect(env.PUBLISH_TOPIC).toBe('events');
+    expect(env.KAFKA_BROKER).toBe('events:9092');
+  });
+});

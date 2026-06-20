@@ -15,7 +15,10 @@ export const serviceHandler: NodeHandler = {
       const target = index.nodeMap.get(edge.target);
       if (!target) continue;
       if (target.type === 'db') env.DB_URL = `postgres://${slugify(target.label)}:5432`;
-      if (target.type === 'kafka') env.PUBLISH_TOPIC = slugify(target.label);
+      if (target.type === 'kafka') {
+        env.PUBLISH_TOPIC = slugify(target.label);
+        env.KAFKA_BROKER = `${slugify(target.label)}:9092`;
+      }
     }
     return { name: slugify(node.label), image: 'sds/microservice', environment: env };
   },
