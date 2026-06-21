@@ -18,13 +18,21 @@ type KafkaConsumer struct {
 }
 
 func NewKafkaConsumer(broker string, topics []string, groupID string) *KafkaConsumer {
-	return &KafkaConsumer{r: kafka.NewReader(kafka.ReaderConfig{
+	cfg := kafka.ReaderConfig{
 		Brokers:     []string{broker},
 		GroupID:     groupID,
-		GroupTopics: topics,
 		MinBytes:    1,
 		MaxBytes:    10e6,
-	})}
+		StartOffset: kafka.FirstOffset, // read from beginning when no committed offset exists
+	}
+	// Use Topic (single) for the common case; fall back to GroupTopics for multi-topic.
+	// Topic+GroupID is better supported across kafka-go versions than GroupTopics.
+	if len(topics) == 1 {
+		cfg.Topic = topics[0]
+	} else {
+		cfg.GroupTopics = topics
+	}
+	return &KafkaConsumer{r: kafka.NewReader(cfg)}
 }
 
 // Read returns the next message value, auto-committing within the consumer group.

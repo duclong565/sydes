@@ -48,7 +48,7 @@ describe('kafkaHandler.compile', () => {
     const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Event Bus' }], edges: [] };
     const svc = kafkaHandler.compile(g.nodes[0]!, buildIndex(g));
     expect(svc.name).toBe('event-bus');
-    expect(svc.image).toBe('apache/kafka:latest');
+    expect(svc.image).toMatch(/^apache\/kafka:/);  // version-pinned; exact tag lives in kafka.ts
     expect(svc.healthcheck).toBeDefined();
     expect(svc.healthcheck!.retries).toBeGreaterThan(0);
   });

@@ -38,6 +38,8 @@ export interface ComposeService {
     timeout: string;
     retries: number;
   };
+  /** service_healthy dependencies: service names that must be healthy before this starts */
+  dependsOn?: string[];
 }
 
 export interface CompilerError {
