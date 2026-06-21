@@ -39,7 +39,7 @@ describe('workerHandler.compile', () => {
     expect(svc.name).toBe('payment-worker');
     expect(svc.image).toBe('sds/worker');
     expect(svc.environment.SUBSCRIBE_TOPICS).toBe('order-events');
-    expect(svc.environment.DB_URL).toBe('postgres://pay-db:5432');
+    expect(svc.environment.DB_URL).toBe('postgres://postgres:sds@pay-db:5432/postgres?sslmode=disable');
   });
 });
 
