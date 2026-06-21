@@ -1,0 +1,14 @@
+{
+  "experimentId": "saga-db",
+  "nodes": [
+    { "id": "o", "type": "service", "label": "Order Service" },
+    { "id": "k", "type": "kafka", "label": "Order Events" },
+    { "id": "p", "type": "worker", "label": "Payment Worker" },
+    { "id": "d", "type": "db", "label": "Orders DB" }
+  ],
+  "edges": [
+    { "source": "o", "target": "k" },
+    { "source": "p", "target": "k" },
+    { "source": "p", "target": "d" }
+  ]
+}
