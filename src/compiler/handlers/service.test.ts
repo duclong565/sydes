@@ -45,6 +45,34 @@ describe('serviceHandler.compile', () => {
   });
 });
 
+describe('serviceHandler.compile dependsOn', () => {
+  it('sets dependsOn to kafka slug(s) when service has a kafka edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'o', type: 'service', label: 'Order Service' },
+        { id: 'k', type: 'kafka', label: 'Events' },
+      ],
+      edges: [{ source: 'o', target: 'k' }],
+    };
+    const svc = serviceHandler.compile(g.nodes[0]!, buildIndex(g));
+    expect(svc.dependsOn).toEqual(['events']);
+  });
+
+  it('leaves dependsOn undefined when service has no kafka edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'o', type: 'service', label: 'Order Service' },
+        { id: 'd', type: 'db', label: 'Orders DB' },
+      ],
+      edges: [{ source: 'o', target: 'd' }],
+    };
+    const svc = serviceHandler.compile(g.nodes[0]!, buildIndex(g));
+    expect(svc.dependsOn).toBeUndefined();
+  });
+});
+
 describe('serviceHandler.compile kafka broker', () => {
   it('emits KAFKA_BROKER on a service->kafka edge', () => {
     const g: Graph = {

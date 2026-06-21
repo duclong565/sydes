@@ -54,6 +54,39 @@ describe('kafkaHandler.compile', () => {
   });
 });
 
+describe('kafkaHandler.compile saga graph (image, env, healthcheck)', () => {
+  // Graph: service o → kafka k ← worker p (saga shape)
+  const g: Graph = {
+    experimentId: 'e',
+    nodes: [
+      { id: 'o', type: 'service', label: 'Order Service' },
+      { id: 'k', type: 'kafka', label: 'Order Events' },
+      { id: 'p', type: 'worker', label: 'Payment Worker' },
+    ],
+    edges: [
+      { source: 'o', target: 'k' },
+      { source: 'p', target: 'k' },
+    ],
+  };
+  const svc = kafkaHandler.compile(g.nodes[1]!, buildIndex(g));
+
+  it('uses the pinned kafka image', () => {
+    expect(svc.image).toBe('apache/kafka:3.7.2');
+  });
+
+  it('emits single-node replication factor env vars', () => {
+    expect(svc.environment.KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR).toBe('1');
+    expect(svc.environment.KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR).toBe('1');
+    expect(svc.environment.KAFKA_TRANSACTION_STATE_LOG_MIN_ISR).toBe('1');
+  });
+
+  it('healthcheck CMD-SHELL creates the topic and checks the worker consumer group', () => {
+    const cmdShell = svc.healthcheck!.test[1]!;
+    expect(cmdShell).toContain('--create --if-not-exists --topic order-events');
+    expect(cmdShell).toContain('sds-order-events');
+  });
+});
+
 describe('kafkaHandler.compile KRaft config', () => {
   it('emits a single-node KRaft listener config', () => {
     const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Event Bus' }], edges: [] };
