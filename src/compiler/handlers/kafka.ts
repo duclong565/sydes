@@ -13,11 +13,35 @@ export const kafkaHandler: NodeHandler = {
       errors.push({ nodeId: node.id, message: 'Kafka must have at least one subscriber' });
     return errors;
   },
-  compile(node) {
+  compile(node, index) {
     const name = slugify(node.label);
+    // Collect all worker subscriber topic lists to derive consumer group ids.
+    const subscriberGroupIds: string[] = index
+      .inEdges(node.id)
+      .filter((e) => index.nodeMap.get(e.source)?.type === 'worker')
+      .map((e) => {
+        // group id = "sds-" + worker's subscribed topics joined by "-"
+        const worker = index.nodeMap.get(e.source)!;
+        const topics = index.outEdges(worker.id)
+          .filter((we) => index.nodeMap.get(we.target)?.type === 'kafka')
+          .map((we) => slugify(index.nodeMap.get(we.target)!.label));
+        return `sds-${topics.join('-')}`;
+      });
+    // Build a healthcheck that:
+    //   1. verifies kafka is up (--list)
+    //   2. creates the topic (--create --if-not-exists)
+    //   3. verifies every subscriber consumer group is active (so up --wait blocks until workers are consuming)
+    const groupChecks = subscriberGroupIds
+      .map((g) => `/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -q '${g}'`)
+      .join(' && ');
+    const healthCmd = [
+      `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list`,
+      `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic ${name} --partitions 1 --replication-factor 1`,
+      ...(groupChecks ? [groupChecks] : []),
+    ].join(' && ') + ' || exit 1';
     return {
       name,
-      image: 'apache/kafka:latest',
+      image: 'apache/kafka:3.7.2',
       environment: {
         KAFKA_NODE_ID: '0',
         KAFKA_PROCESS_ROLES: 'broker,controller',
@@ -27,9 +51,13 @@ export const kafkaHandler: NodeHandler = {
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT',
         KAFKA_CONTROLLER_QUORUM_VOTERS: `0@${name}:9093`,
         KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT',
+        // Required for kafka-go consumer groups to work:
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1',
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: '1',
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: '1',
       },
       healthcheck: {
-        test: ['CMD-SHELL', '/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1'],
+        test: ['CMD-SHELL', healthCmd],
         interval: '5s',
         timeout: '10s',
         retries: 15,

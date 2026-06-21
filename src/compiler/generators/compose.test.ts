@@ -38,6 +38,30 @@ describe('generateCompose', () => {
   });
 });
 
+describe('generateCompose depends_on', () => {
+  it('emits depends_on with service_healthy when dependsOn is set', () => {
+    const services: ComposeService[] = [
+      {
+        name: 'order-service',
+        image: 'sds/microservice',
+        environment: {},
+        dependsOn: ['events'],
+      },
+    ];
+    const yaml = generateCompose(services, 'net');
+    expect(yaml).toContain('    depends_on:');
+    expect(yaml).toContain('      events:');
+    expect(yaml).toContain('        condition: service_healthy');
+  });
+
+  it('omits depends_on when not set', () => {
+    const services: ComposeService[] = [
+      { name: 'order-service', image: 'sds/microservice', environment: {} },
+    ];
+    expect(generateCompose(services, 'net')).not.toContain('depends_on:');
+  });
+});
+
 describe('generateCompose volumes', () => {
   it('renders a volumes block when present', () => {
     const services: ComposeService[] = [

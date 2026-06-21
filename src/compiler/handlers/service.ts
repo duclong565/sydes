@@ -11,6 +11,7 @@ export const serviceHandler: NodeHandler = {
       LATENCY_MS: String(node.config?.latencyMs ?? 0),
       ERROR_RATE: String(node.config?.errorRate ?? 0),
     };
+    const kafkaDeps: string[] = [];
     for (const edge of index.outEdges(node.id)) {
       const target = index.nodeMap.get(edge.target);
       if (!target) continue;
@@ -18,8 +19,14 @@ export const serviceHandler: NodeHandler = {
       if (target.type === 'kafka') {
         env.PUBLISH_TOPIC = slugify(target.label);
         env.KAFKA_BROKER = `${slugify(target.label)}:9092`;
+        kafkaDeps.push(slugify(target.label));
       }
     }
-    return { name: slugify(node.label), image: 'sds/microservice', environment: env };
+    return {
+      name: slugify(node.label),
+      image: 'sds/microservice',
+      environment: env,
+      ...(kafkaDeps.length > 0 ? { dependsOn: kafkaDeps } : {}),
+    };
   },
 };

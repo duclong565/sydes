@@ -26,6 +26,13 @@ export function generateCompose(services: ComposeService[], networkName: string)
       lines.push(`      timeout: ${svc.healthcheck.timeout}`);
       lines.push(`      retries: ${svc.healthcheck.retries}`);
     }
+    if (svc.dependsOn && svc.dependsOn.length > 0) {
+      lines.push('    depends_on:');
+      for (const dep of svc.dependsOn) {
+        lines.push(`      ${dep}:`);
+        lines.push('        condition: service_healthy');
+      }
+    }
     lines.push('    networks:');
     lines.push(`      - ${networkName}`);
   }
