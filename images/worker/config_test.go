@@ -47,11 +47,27 @@ func TestFromEnv_InvalidErrorRate(t *testing.T) {
 	}
 }
 
-func TestFromEnv_IgnoresDBURL(t *testing.T) {
+func TestFromEnv_ParsesDBURL(t *testing.T) {
 	t.Setenv("KAFKA_BROKER", "kafka:9092")
 	t.Setenv("SUBSCRIBE_TOPICS", "x")
-	t.Setenv("DB_URL", "postgres://db:5432")
-	if _, err := FromEnv(); err != nil {
-		t.Fatalf("DB_URL should be ignored: %v", err)
+	t.Setenv("DB_URL", "postgres://postgres:sds@orders-db:5432/postgres?sslmode=disable")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DBURL != "postgres://postgres:sds@orders-db:5432/postgres?sslmode=disable" {
+		t.Errorf("DBURL = %q", cfg.DBURL)
+	}
+}
+
+func TestFromEnv_EmptyDBURL(t *testing.T) {
+	t.Setenv("KAFKA_BROKER", "kafka:9092")
+	t.Setenv("SUBSCRIBE_TOPICS", "x")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DBURL != "" {
+		t.Errorf("expected empty DBURL, got %q", cfg.DBURL)
 	}
 }

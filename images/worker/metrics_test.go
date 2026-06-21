@@ -23,3 +23,20 @@ func TestMetrics_ExposesConsumed(t *testing.T) {
 		t.Errorf("missing error counter:\n%s", body)
 	}
 }
+
+func TestMetrics_ExposesDBWrites(t *testing.T) {
+	m := NewMetrics()
+	m.DBWrites.WithLabelValues("ok").Inc()
+	m.DBWrites.WithLabelValues("error").Inc()
+	m.DBWrites.WithLabelValues("error").Inc()
+
+	rec := httptest.NewRecorder()
+	m.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+	if !strings.Contains(body, `db_writes_total{status="ok"} 1`) {
+		t.Errorf("missing db_writes ok:\n%s", body)
+	}
+	if !strings.Contains(body, `db_writes_total{status="error"} 2`) {
+		t.Errorf("missing db_writes error:\n%s", body)
+	}
+}
