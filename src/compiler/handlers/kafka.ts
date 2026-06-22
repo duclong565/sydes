@@ -32,7 +32,7 @@ export const kafkaHandler: NodeHandler = {
     //   2. creates the topic (--create --if-not-exists)
     //   3. verifies every subscriber consumer group is active (so up --wait blocks until workers are consuming)
     const groupChecks = subscriberGroupIds
-      .map((g) => `/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -q '${g}'`)
+      .map((g) => `/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx '${g}'`)
       .join(' && ');
     const healthCmd = [
       `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list`,

@@ -25,12 +25,17 @@ describe.skipIf(!process.env.RUN_DOCKER)('saga chain smoke (real docker)', () =>
       await c.preflight(result.output);
       await c.up(id); // kafka cold start; --wait blocks until healthy
       await new K6Runner(runner).run(id, runDir); // fire load at the service -> it publishes
-      await new Promise((r) => setTimeout(r, 2000)); // let the worker drain
-      const logs = await runner.run([
-        'docker', 'compose', '-p', `sds-${id}`, '-f', join(runDir, 'compose.yml'),
-        'logs', 'payment-worker',
-      ]);
-      expect(logs.stdout).toMatch(/consumed/);
+      // Poll the worker logs until it has consumed (instead of a fixed drain sleep).
+      let workerLogs = '';
+      for (let i = 0; i < 15; i++) {
+        workerLogs = (await runner.run([
+          'docker', 'compose', '-p', `sds-${id}`, '-f', join(runDir, 'compose.yml'),
+          'logs', 'payment-worker',
+        ])).stdout;
+        if (/consumed/.test(workerLogs)) break;
+        await new Promise((res) => setTimeout(res, 1000));
+      }
+      expect(workerLogs).toMatch(/consumed/);
     } finally {
       await c.down(id);
       rmSync(runRoot, { recursive: true, force: true });

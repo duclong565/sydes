@@ -33,6 +33,10 @@ func NewPgxSink(ctx context.Context, dsn string) (*PgxSink, error) {
 		if err = pool.Ping(ctx); err == nil {
 			break
 		}
+		if ctx.Err() != nil {
+			pool.Close()
+			return nil, ctx.Err()
+		}
 		if time.Now().After(deadline) {
 			pool.Close()
 			return nil, fmt.Errorf("postgres not ready after 30s: %w", err)
@@ -47,7 +51,7 @@ func NewPgxSink(ctx context.Context, dsn string) (*PgxSink, error) {
 }
 
 func (s *PgxSink) Write(ctx context.Context, payload []byte) error {
-	_, err := s.pool.Exec(ctx, `INSERT INTO events(payload) VALUES($1)`, string(payload))
+	_, err := s.pool.Exec(ctx, `INSERT INTO events(payload) VALUES($1)`, payload)
 	return err
 }
 

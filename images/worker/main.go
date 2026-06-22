@@ -54,7 +54,8 @@ func main() {
 	go func() {
 		log.Printf("worker http on :%d", cfg.Port)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("http error: %v", err)
+			log.Printf("http server error: %v", err)
+			stop() // cancel ctx -> graceful shutdown path runs
 		}
 	}()
 
