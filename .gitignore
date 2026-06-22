@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.log
 .sds-runs/
+
+# local (gitignored) handoffs/scratch
+docs/_local/
