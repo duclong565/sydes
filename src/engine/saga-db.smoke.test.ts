@@ -34,10 +34,13 @@ describe.skipIf(!process.env.RUN_DOCKER)('saga-db smoke (real docker)', () => {
           ...compose, 'exec', '-T', 'orders-db',
           'psql', '-U', 'postgres', '-tAc', 'SELECT count(*) FROM events',
         ]);
-        count = parseInt(r.stdout.trim(), 10) || 0;
-        if (count > 0) break;
+        if (r.code === 0) {
+          count = parseInt(r.stdout.trim(), 10) || 0;
+          if (count > 0) break;
+        }
         await new Promise((res) => setTimeout(res, 1000));
       }
+      console.log(`saga-db smoke: events row count = ${count}`);
       expect(count).toBeGreaterThan(0);
     } finally {
       await c.down(id);
