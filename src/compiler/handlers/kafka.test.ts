@@ -84,6 +84,7 @@ describe('kafkaHandler.compile saga graph (image, env, healthcheck)', () => {
     const cmdShell = svc.healthcheck!.test[1]!;
     expect(cmdShell).toContain('--create --if-not-exists --topic order-events');
     expect(cmdShell).toContain('sds-order-events');
+    expect(cmdShell).toContain("grep -qx 'sds-order-events'");
   });
 });
 
