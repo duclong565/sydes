@@ -42,7 +42,8 @@ func main() {
 	go func() {
 		log.Printf("microservice listening on :%d", cfg.Port)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
+			log.Printf("http server error: %v", err)
+			stop() // cancel ctx -> graceful shutdown path runs
 		}
 	}()
 
