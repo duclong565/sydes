@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import fastifyStatic from '@fastify/static';
 import type { Graph, LoadConfig } from '../compiler/types.js';
 import { compile as compileFn } from '../compiler/index.js';
 import type { Runner } from '../engine/runner.js';
@@ -75,6 +76,11 @@ export function buildServer(deps: AgentDeps): AgentServer {
     rec.state = 'stopped';
     return { runId, state: rec.state };
   });
+
+  const distDir = resolve('web', 'dist');
+  if (existsSync(distDir)) {
+    app.register(fastifyStatic, { root: distDir });
+  }
 
   return { app, runs };
 }
