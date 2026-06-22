@@ -14,15 +14,16 @@ type RandSource interface {
 
 // Worker consumes messages and simulates processing work.
 type Worker struct {
-	cfg      Config
-	rand     RandSource
-	metrics  *Metrics
-	consumer Consumer
-	sink     Sink // nil when no DB_URL configured
+	cfg         Config
+	rand        RandSource
+	metrics     *Metrics
+	consumer    Consumer
+	sink        Sink // nil when no DB_URL configured
+	readBackoff time.Duration // delay after a transient read error
 }
 
 func NewWorker(cfg Config, rnd RandSource, metrics *Metrics, consumer Consumer, sink Sink) *Worker {
-	return &Worker{cfg: cfg, rand: rnd, metrics: metrics, consumer: consumer, sink: sink}
+	return &Worker{cfg: cfg, rand: rnd, metrics: metrics, consumer: consumer, sink: sink, readBackoff: 200 * time.Millisecond}
 }
 
 // Run consumes until the context is cancelled.
@@ -34,7 +35,8 @@ func (w *Worker) Run(ctx context.Context) {
 			if ctx.Err() != nil {
 				return // shutdown
 			}
-			continue // transient read error: skip and retry
+			time.Sleep(w.readBackoff) // bound the retry rate on transient read errors
+			continue
 		}
 		w.process(ctx, val)
 		count++

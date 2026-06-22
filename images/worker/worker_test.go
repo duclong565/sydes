@@ -136,3 +136,38 @@ func TestWorker_NilSinkIsNoOp(t *testing.T) {
 		t.Errorf("expected 2 ok consumed:\n%s", body)
 	}
 }
+
+// flakyConsumer returns one transient (non-ctx) error, then its queued values, then cancels.
+type flakyConsumer struct {
+	erroredOnce bool
+	values      [][]byte
+	i           int
+	cancel      context.CancelFunc
+}
+
+func (f *flakyConsumer) Read(_ context.Context) ([]byte, error) {
+	if !f.erroredOnce {
+		f.erroredOnce = true
+		return nil, errors.New("transient read error")
+	}
+	if f.i >= len(f.values) {
+		f.cancel()
+		return nil, context.Canceled
+	}
+	v := f.values[f.i]
+	f.i++
+	return v, nil
+}
+func (f *flakyConsumer) Close() error { return nil }
+
+func TestWorker_SurvivesTransientReadError(t *testing.T) {
+	m := NewMetrics()
+	ctx, cancel := context.WithCancel(context.Background())
+	fc := &flakyConsumer{values: [][]byte{[]byte("a")}, cancel: cancel}
+	w := NewWorker(Config{}, stubRand{float: 1.0}, m, fc, nil)
+	w.readBackoff = 0 // no real delay in the test
+	w.Run(ctx)
+	if !strings.Contains(scrape(m), `messages_consumed_total{status="ok"} 1`) {
+		t.Errorf("loop should survive a transient read error and process the next message:\n%s", scrape(m))
+	}
+}
