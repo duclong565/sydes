@@ -18,10 +18,11 @@ type Worker struct {
 	rand     RandSource
 	metrics  *Metrics
 	consumer Consumer
+	sink     Sink // nil when no DB_URL configured
 }
 
-func NewWorker(cfg Config, rnd RandSource, metrics *Metrics, consumer Consumer) *Worker {
-	return &Worker{cfg: cfg, rand: rnd, metrics: metrics, consumer: consumer}
+func NewWorker(cfg Config, rnd RandSource, metrics *Metrics, consumer Consumer, sink Sink) *Worker {
+	return &Worker{cfg: cfg, rand: rnd, metrics: metrics, consumer: consumer, sink: sink}
 }
 
 // Run consumes until the context is cancelled.
@@ -35,13 +36,13 @@ func (w *Worker) Run(ctx context.Context) {
 			}
 			continue // transient read error: skip and retry
 		}
-		w.process(val)
+		w.process(ctx, val)
 		count++
 		log.Printf("consumed %d", count)
 	}
 }
 
-func (w *Worker) process(_ []byte) {
+func (w *Worker) process(ctx context.Context, val []byte) {
 	w.metrics.InFlight.Inc()
 	defer w.metrics.InFlight.Dec()
 	start := time.Now()
@@ -57,5 +58,15 @@ func (w *Worker) process(_ []byte) {
 		w.metrics.Consumed.WithLabelValues("error").Inc()
 		return
 	}
+
+	if w.sink != nil {
+		if err := w.sink.Write(ctx, val); err != nil {
+			w.metrics.DBWrites.WithLabelValues("error").Inc()
+			log.Printf("db write failed: %v", err)
+		} else {
+			w.metrics.DBWrites.WithLabelValues("ok").Inc()
+		}
+	}
+
 	w.metrics.Consumed.WithLabelValues("ok").Inc()
 }

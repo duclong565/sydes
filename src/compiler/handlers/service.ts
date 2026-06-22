@@ -1,5 +1,6 @@
 import type { NodeHandler } from '../types.js';
 import { slugify } from '../util.js';
+import { dbUrl } from './db.js';
 
 export const serviceHandler: NodeHandler = {
   validate(node, index) {
@@ -15,7 +16,7 @@ export const serviceHandler: NodeHandler = {
     for (const edge of index.outEdges(node.id)) {
       const target = index.nodeMap.get(edge.target);
       if (!target) continue;
-      if (target.type === 'db') env.DB_URL = `postgres://${slugify(target.label)}:5432`;
+      if (target.type === 'db') env.DB_URL = dbUrl(slugify(target.label));
       if (target.type === 'kafka') {
         env.PUBLISH_TOPIC = slugify(target.label);
         env.KAFKA_BROKER = `${slugify(target.label)}:9092`;

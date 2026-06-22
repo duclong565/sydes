@@ -40,7 +40,7 @@ describe('serviceHandler.compile', () => {
     expect(svc.image).toBe('sds/microservice');
     expect(svc.environment.LATENCY_MS).toBe('20');
     expect(svc.environment.ERROR_RATE).toBe('0.01');
-    expect(svc.environment.DB_URL).toBe('postgres://orders-db:5432');
+    expect(svc.environment.DB_URL).toBe('postgres://postgres:sds@orders-db:5432/postgres?sslmode=disable');
     expect(svc.environment.PUBLISH_TOPIC).toBe('events');
   });
 });

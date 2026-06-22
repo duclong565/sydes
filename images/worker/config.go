@@ -15,6 +15,7 @@ type Config struct {
 	ErrorRate       float64
 	KafkaBroker     string
 	SubscribeTopics []string
+	DBURL           string
 }
 
 // FromEnv parses + validates configuration, failing loud on any invalid value.
@@ -50,6 +51,8 @@ func FromEnv() (Config, error) {
 	}
 
 	cfg.KafkaBroker = os.Getenv("KAFKA_BROKER")
+
+	cfg.DBURL = os.Getenv("DB_URL")
 
 	for _, t := range strings.Split(os.Getenv("SUBSCRIBE_TOPICS"), ",") {
 		if s := strings.TrimSpace(t); s != "" {

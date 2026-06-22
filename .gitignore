@@ -2,3 +2,10 @@ node_modules/
 dist/
 *.log
 .sds-runs/
+
+# local (gitignored) handoffs/scratch
+docs/_local/
+
+# local Go build artifacts (binary named after module dir)
+images/worker/worker
+images/microservice/microservice
