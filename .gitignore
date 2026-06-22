@@ -5,3 +5,7 @@ dist/
 
 # local (gitignored) handoffs/scratch
 docs/_local/
+
+# local Go build artifacts (binary named after module dir)
+images/worker/worker
+images/microservice/microservice
