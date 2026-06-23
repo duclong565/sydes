@@ -5,12 +5,19 @@ import { Palette } from './Palette.js';
 import { Canvas } from './Canvas.js';
 import { Inspector } from './Inspector.js';
 import { Drawer, type DrawerTab } from './Drawer.js';
+import { RunBadge } from './RunBadge.js';
+
+function errorText(errors: unknown[]): string {
+  return errors.map((e) => (e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : JSON.stringify(e))).join('; ');
+}
 
 export function App() {
   const [examples, setExamples] = useState<ExampleEntry[]>([]);
   const [compose, setCompose] = useState('');
+  const [logs, setLogs] = useState('');
   const [runId, setRunId] = useState('');
   const [status, setStatus] = useState<RunStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('compose');
 
@@ -18,34 +25,73 @@ export function App() {
   const setExperimentId = useGraphStore((s) => s.setExperimentId);
   const loadExample = useGraphStore((s) => s.loadExample);
 
-  useEffect(() => { api.examples().then(setExamples); }, []);
+  useEffect(() => { api.examples().then(setExamples).catch(() => setError('failed to load examples')); }, []);
+
+  // Status poll: self-cancelling, stops on terminal state.
   useEffect(() => {
     if (!runId) return;
-    const t = setInterval(async () => setStatus(await api.status(runId)), 2000);
-    return () => clearInterval(t);
+    let active = true;
+    async function poll() {
+      let s: RunStatus;
+      try { s = await api.status(runId); } catch (e) { if (active) setError(String(e)); return; }
+      if (!active) return;
+      setStatus(s);
+      if (s.state === 'error') setError(s.error ?? 'run failed');
+      if (s.state === 'starting' || s.state === 'running') setTimeout(poll, 2000);
+    }
+    poll();
+    return () => { active = false; };
   }, [runId]);
 
+  // Logs poll: only while the Logs tab is open and a run exists.
+  useEffect(() => {
+    if (!runId || !drawerOpen || drawerTab !== 'logs') return;
+    let active = true;
+    async function poll() {
+      try { const r = await api.logs(runId); if (active) setLogs(r.lines); } catch { /* transient */ }
+      // torn down when runId clears (onStop) or the drawer/tab changes; no terminal-state self-stop needed
+      if (active) setTimeout(poll, 2000);
+    }
+    poll();
+    return () => { active = false; };
+  }, [runId, drawerOpen, drawerTab]);
+
+  const state = status?.state ?? null;
+
   async function onPreview() {
-    const r = await api.compile(useGraphStore.getState().toGraph());
-    setCompose(r.output?.compose ?? `errors: ${JSON.stringify(r.errors)}`);
-    setDrawerTab('compose');
-    setDrawerOpen(true);
+    try {
+      const r = await api.compile(useGraphStore.getState().toGraph());
+      if (r.ok) { setCompose(r.output.compose); setError(null); setDrawerTab('compose'); setDrawerOpen(true); }
+      else setError(`Compile failed: ${errorText(r.errors)}`);
+    } catch (e) { setError(String(e)); }
   }
   async function onRun() {
-    const r = await api.run(useGraphStore.getState().toGraph());
-    setRunId(r.runId);
-    setDrawerTab('status');
-    setDrawerOpen(true);
+    try {
+      const r = await api.run(useGraphStore.getState().toGraph());
+      if ('runId' in r) {
+        setError(null);
+        setStatus({ runId: r.runId, state: 'starting', services: [] }); // optimistic warmup
+        setRunId(r.runId);
+        setDrawerTab('status');
+        setDrawerOpen(true);
+      } else setError(`Compile failed: ${errorText(r.errors)}`);
+    } catch (e) { setError(String(e)); }
   }
   async function onStop() {
     if (!runId) return;
-    await api.stop(runId);
-    setStatus(await api.status(runId));
+    try {
+      await api.stop(runId);
+      setStatus({ runId, state: 'stopped', services: [] });
+      setRunId(''); // halts polling
+    } catch (e) { setError(String(e)); }
   }
   function onLoadExample(id: string) {
     const ex = examples.find((e) => e.id === id);
     if (ex) loadExample(ex.graph as Graph);
   }
+
+  const warming = state === 'starting';
+  const stoppable = state === 'starting' || state === 'running';
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-800">
@@ -59,11 +105,20 @@ export function App() {
           <option value="" disabled>Load example…</option>
           {examples.map((e) => (<option key={e.id} value={e.id}>{e.label}</option>))}
         </select>
+        <RunBadge state={state} error={status?.error} />
         <div className="flex-1" />
         <button className="rounded bg-slate-200 px-3 py-1 text-sm" onClick={onPreview}>Preview</button>
-        <button className="rounded bg-blue-600 px-3 py-1 text-sm text-white" onClick={onRun}>Run</button>
-        <button className="rounded bg-red-600 px-3 py-1 text-sm text-white" onClick={onStop}>Stop</button>
+        <button className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50" disabled={warming} onClick={onRun}>Run</button>
+        <button className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50" disabled={!stoppable} onClick={onStop}>Stop</button>
       </div>
+
+      {error && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-1.5 text-sm text-red-700">
+          <span className="font-semibold">✕</span>
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="rounded px-2 py-0.5 text-xs text-red-600 hover:bg-red-100">dismiss</button>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         <Palette />
@@ -78,6 +133,7 @@ export function App() {
         onSelectTab={setDrawerTab}
         compose={compose}
         status={status}
+        logs={logs}
       />
     </div>
   );
