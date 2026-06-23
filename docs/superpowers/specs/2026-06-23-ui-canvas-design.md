@@ -59,14 +59,25 @@ with fixed-width side rails and the **canvas as the flex-grow center**.
 │ Worker   │                            (DB)                  │ error:..  │
 │ DB / LB  │   [zoom +/-]                                     │ [delete]  │
 ├──────────┴───────────────────────────────────────────────────────────────┤
-│ bottom panel (≈≤34vh, scrolls): compose/errors preview │ status table     │ (auto)
+│ ▸ drawer tab bar: [Compose][Status]  Logs▸(b3)  Metrics▸(b4)   [▴ expand]   │ (auto)
+│ …drawer body (only when expanded, ≤34vh): active tab content…              │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Side rails (`palette` ~`w-40`, `inspector` ~`w-64`) are fixed-width and scroll
 internally; the canvas takes the rest. React Flow's own pan/zoom handles graphs
-larger than the viewport. (A reviewed static mockup of this layout lives at the
-gitignored `docs/_local/ui-brick2-mockup.html`.)
+larger than the viewport.
+
+**Bottom drawer (collapsible, tabbed) — canvas-first.** The compose preview and
+status table do NOT sit permanently open (they'd eat drawing space). They live in
+a bottom **drawer that is collapsed by default** — only a thin tab bar shows, so
+the canvas owns the screen. Tabs: **Compose** and **Status** (this brick); **Logs**
+(brick 3) and **Metrics** (brick 4) slot in as future tabs. Preview expands the
+drawer to the Compose tab; Run expands it to Status. A chevron toggles
+expand/collapse.
+
+(A reviewed static mockup of this layout lives at the gitignored
+`docs/_local/ui-brick2-mockup.html`.)
 
 ## State — `web/src/store.ts` (Zustand)
 
@@ -114,15 +125,23 @@ interface SdsNodeData { type: NodeType; label: string; config?: { latencyMs?: nu
 - **`Inspector.tsx`** — reads `selectedId`; if a node is selected, edits `label`
   (text) and, for `service`, `latencyMs` (int ≥ 0) and `errorRate` (0–1) via
   `updateNode`; a Delete button calls `removeNode`. Renders a hint when nothing is
-  selected.
+  selected. **Deliberately minimal:** it edits only config the engine consumes;
+  env vars / healthchecks are compiler-*derived from topology*, not user-edited
+  (editing them would contradict the declarative "infer from graph" model). Extend
+  cleanly only if the graph contract ever gains per-node config.
 - **`Canvas.tsx`** — `<ReactFlow>` wired to the store: `nodes`, `edges`,
   `onNodesChange`, `onEdgesChange`, `onConnect`, `nodeTypes`,
-  `onNodeClick`→`selectedId`, plus `<Background>`/`<Controls>`.
-- **`App.tsx`** — composes top bar + palette + canvas + inspector + preview pane +
-  status table. **Preview/Run/Stop call `api.compile`/`api.run` with
+  `onNodeClick`→`selectedId`, plus `<Background>` and `<Controls>` (the latter
+  gives zoom %, zoom in/out, and **fit-to-view** for free).
+- **`Drawer.tsx`** — the collapsible, tabbed bottom panel. Holds tab state
+  (`compose | status`) + an `open` flag (collapsed by default); renders the Compose
+  preview pane and the Status table as tabs. Exposes an imperative open-to-tab so
+  `App` opens Compose on Preview and Status on Run.
+- **`App.tsx`** — composes top bar + palette + canvas + inspector + `Drawer`. **Preview/Run/Stop call `api.compile`/`api.run` with
   `useGraphStore.getState().toGraph()`** (replacing the brick-1 example-as-graph
   path). `Load example` fetches via `api.examples()` and calls `loadExample`. The
-  status table + polling from brick 1 are preserved.
+  status polling from brick 1 is preserved (now feeding the Status tab). Preview
+  opens the drawer's Compose tab; Run opens its Status tab.
 
 ## Dependencies
 
@@ -149,9 +168,12 @@ its own CSS — imported once in the canvas/app.)
 
 ## Out of scope (later bricks / polish)
 
-Warmup "Warming up…" state (brick 3), live metric badges over WebSocket (brick 4),
-true drag-from-palette HTML5 DnD, multi-select/copy/paste, undo/redo, saving or
-loading graphs to disk, client-side edge validation.
+Warmup "Warming up…" state (brick 3), Logs drawer tab (brick 3), live metric
+badges + Metrics drawer tab over WebSocket (brick 4), true drag-from-palette HTML5
+DnD, multi-select/copy/paste, **undo/redo**, **auto-layout (dagre)**, **export
+graph JSON to file**, collapsible side rails, saving/loading graphs to disk,
+client-side edge validation. (Fit-to-view + zoom % are IN scope — free from React
+Flow `<Controls>`.)
 
 ## Likely task breakdown (for writing-plans)
 
@@ -160,5 +182,8 @@ loading graphs to disk, client-side edge validation.
 2. `nodes/SdsNode.tsx` + `Palette.tsx` + `Canvas.tsx` (React Flow bound to the
    store) + `ResizeObserver` polyfill + a light canvas render test.
 3. `Inspector.tsx` (label + service config + delete) + tests.
-4. `App.tsx` integration (layout, `Load example`→`loadExample`,
-   Preview/Run/Stop→`toGraph`) + updated RTL tests.
+4. `Drawer.tsx` (collapsible, tabbed Compose | Status; collapsed by default) +
+   tests.
+5. `App.tsx` integration (full-viewport layout, `Load example` → `loadExample`,
+   Preview/Run/Stop → `toGraph`, Preview/Run open the drawer tabs) + updated RTL
+   tests.
