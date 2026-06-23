@@ -44,16 +44,29 @@ The serializer must emit exactly this shape (it is what `/api/compile` and
 
 ## Layout
 
+**Full-viewport, responsive app shell** — fills the screen and flexes with window
+size (no fixed max-width / fixed canvas height; the canvas grows to use available
+space on large monitors). Structure is a column (`h-screen`, flex-col):
+top bar (auto height) → main row (`flex-1`, fills leftover height) → bottom panel
+(auto, capped ~`34vh`, scrolls). The main row is `[palette | canvas | inspector]`
+with fixed-width side rails and the **canvas as the flex-grow center**.
+
 ```
-┌ top bar: [experiment name input] [Load example ▾] [Preview] [Run] [Stop] ┐
-├ palette ─┬──────────────── React Flow canvas ──────────────┬ inspector ┤
-│ Service  │   (Service) ──▶ (Kafka) ◀── (Worker)             │ label:..  │
-│ Kafka    │                              │                  │ latency:. │
-│ Worker   │                            (DB)                 │ error:..  │
-│ DB / LB  │                                                 │           │
-├──────────┴──── errors / compose preview pane ───────────────────────────┤
-└ status table (brick 1: run state + per-service rows) ───────────────────┘
+┌ top bar: [experiment name input] [Load example ▾] [Preview] [Run] [Stop] ┐ (auto)
+├ palette ─┬──────────── React Flow canvas (flex-1, fills) ────┬ inspector ┤ (flex-1)
+│ Service  │   (Service) ──▶ (Kafka) ◀── (Worker)              │ label:..  │
+│ Kafka    │                              │                   │ latency:. │
+│ Worker   │                            (DB)                  │ error:..  │
+│ DB / LB  │   [zoom +/-]                                     │ [delete]  │
+├──────────┴───────────────────────────────────────────────────────────────┤
+│ bottom panel (≈≤34vh, scrolls): compose/errors preview │ status table     │ (auto)
+└────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Side rails (`palette` ~`w-40`, `inspector` ~`w-64`) are fixed-width and scroll
+internally; the canvas takes the rest. React Flow's own pan/zoom handles graphs
+larger than the viewport. (A reviewed static mockup of this layout lives at the
+gitignored `docs/_local/ui-brick2-mockup.html`.)
 
 ## State — `web/src/store.ts` (Zustand)
 
