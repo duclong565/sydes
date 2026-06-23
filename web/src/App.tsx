@@ -49,6 +49,7 @@ export function App() {
     let active = true;
     async function poll() {
       try { const r = await api.logs(runId); if (active) setLogs(r.lines); } catch { /* transient */ }
+      // torn down when runId clears (onStop) or the drawer/tab changes; no terminal-state self-stop needed
       if (active) setTimeout(poll, 2000);
     }
     poll();
@@ -81,7 +82,6 @@ export function App() {
     try {
       await api.stop(runId);
       setStatus({ runId, state: 'stopped', services: [] });
-      setDrawerOpen(false);
       setRunId(''); // halts polling
     } catch (e) { setError(String(e)); }
   }
@@ -99,7 +99,7 @@ export function App() {
         <h1 className="mr-2 text-lg font-bold">System Design Sandbox</h1>
         <label className="text-xs text-slate-500" htmlFor="exp">experiment</label>
         <input id="exp" aria-label="experiment" value={experimentId} onChange={(e) => setExperimentId(e.target.value)}
-          className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
         <select aria-label="load example" defaultValue="" onChange={(e) => onLoadExample(e.target.value)}
           className="rounded border border-slate-300 px-2 py-1 text-sm">
           <option value="" disabled>Load example…</option>

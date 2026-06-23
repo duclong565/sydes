@@ -51,7 +51,7 @@ describe('App brick 3', () => {
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
-    await waitFor(() => expect(screen.getByText(/stopped/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Stopped/)).toBeInTheDocument());
   });
 
   it('polls /api/logs when the Logs tab is open', async () => {
