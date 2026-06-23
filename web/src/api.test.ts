@@ -14,7 +14,7 @@ describe('api', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: false, errors: [{ message: 'x' }] }), { status: 400 })));
     const r = await api.compile({ experimentId: 'e', nodes: [], edges: [] });
     expect(r.ok).toBe(false);
-    expect(r.errors).toBeTruthy();
+    if (!r.ok) expect(r.errors).toBeTruthy();
   });
 
   it('throws when the response body is not JSON', async () => {
