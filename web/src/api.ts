@@ -23,30 +23,36 @@ export interface RunStatus {
   error?: string;
 }
 
+export type CompileResult = { ok: true; output: { compose: string } } | { ok: false; errors: unknown[] };
+export type RunResult = { runId: string; state: string } | { ok: false; errors: unknown[] };
+
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-  });
-  return (await res.json()) as T;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new Error(`request failed: ${url}`);
+  }
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // non-JSON body (e.g. a proxy 502) — surface it instead of silently parsing
+    throw new Error(`HTTP ${res.status} from ${url}: ${text.slice(0, 200)}`);
+  }
 }
 
 export const api = {
   examples: () => jsonFetch<ExampleEntry[]>('/api/examples'),
   compile: (graph: GraphLike) =>
-    jsonFetch<{ ok: boolean; output?: { compose: string }; errors?: unknown[] }>('/api/compile', {
-      method: 'POST',
-      body: JSON.stringify({ graph }),
-    }),
+    jsonFetch<CompileResult>('/api/compile', { method: 'POST', body: JSON.stringify({ graph }) }),
   run: (graph: GraphLike) =>
-    jsonFetch<{ runId: string; state: string }>('/api/run', {
-      method: 'POST',
-      body: JSON.stringify({ graph }),
-    }),
+    jsonFetch<RunResult>('/api/run', { method: 'POST', body: JSON.stringify({ graph }) }),
   status: (runId: string) => jsonFetch<RunStatus>(`/api/status/${runId}`),
   stop: (runId: string) =>
-    jsonFetch<{ runId: string; state: string }>('/api/stop', {
-      method: 'POST',
-      body: JSON.stringify({ runId }),
-    }),
+    jsonFetch<{ runId: string; state: string }>('/api/stop', { method: 'POST', body: JSON.stringify({ runId }) }),
+  logs: (runId: string) => jsonFetch<{ runId: string; lines: string }>(`/api/logs/${runId}`),
 };

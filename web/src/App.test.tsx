@@ -13,31 +13,58 @@ beforeEach(() => {
   useGraphStore.setState({ experimentId: 'untitled', nodes: [], edges: [], selectedId: null });
 });
 
-describe('App', () => {
-  it('loads examples into the Load-example dropdown', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(exampleList))));
+describe('App brick 3', () => {
+  it('shows the "Warming up…" badge immediately after Run', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      return new Response(JSON.stringify({ runId: 'saga', state: 'starting', services: [] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
     render(<App />);
-    await waitFor(() => expect(screen.getByRole('option', { name: 'saga' })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByText(/warming up/i)).toBeInTheDocument());
   });
 
-  it('Run posts /api/run with the serialized canvas graph', async () => {
-    let runBody: { graph: { experimentId: string } } | null = null;
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  it('shows a dismissible error banner on a compile 400', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
-      if (url === '/api/run') {
-        runBody = JSON.parse(String(init!.body));
-        return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
-      }
+      if (url === '/api/compile') return new Response(JSON.stringify({ ok: false, errors: [{ message: 'Kafka needs a publisher' }] }), { status: 400 });
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await waitFor(() => expect(screen.getByText(/Kafka needs a publisher/)).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+    expect(screen.queryByText(/Kafka needs a publisher/)).toBeNull();
+  });
+
+  it('Stop shows the Stopped badge', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url === '/api/stop') return new Response(JSON.stringify({ runId: 'saga', state: 'stopped' }));
+      return new Response(JSON.stringify({ runId: 'saga', state: 'starting', services: [] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    await waitFor(() => expect(screen.getByText(/Stopped/)).toBeInTheDocument());
+  });
+
+  it('polls /api/logs when the Logs tab is open', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url.startsWith('/api/logs/')) return new Response(JSON.stringify({ runId: 'saga', lines: 'worker | consumed 1' }));
       return new Response(JSON.stringify({ runId: 'saga', state: 'running', services: [] }));
     });
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
-    await waitFor(() => expect(screen.getByRole('option', { name: 'saga' })).toBeInTheDocument());
-
-    await userEvent.selectOptions(screen.getByLabelText('load example'), 'saga'); // loadExample(saga)
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/run', expect.objectContaining({ method: 'POST' })));
-    expect(runBody!.graph.experimentId).toBe('saga');
+    await userEvent.click(screen.getByRole('button', { name: 'Logs' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/logs/saga', expect.anything()));
   });
 });

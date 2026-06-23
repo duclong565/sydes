@@ -61,6 +61,12 @@ export class ExperimentController {
     await this.runner.run([...this.baseArgs(id), 'down', '-v', '--remove-orphans']);
   }
 
+  /** Returns recent container logs for the experiment (best-effort; empty if none). */
+  async logs(id: string): Promise<string> {
+    const r = await this.runner.run([...this.baseArgs(id), 'logs', '--tail', '200']);
+    return r.stdout;
+  }
+
   /** Fail-loud: verify every sds/* image referenced by the compose exists locally. */
   async preflight(output: CompilerOutput): Promise<void> {
     const images = [
