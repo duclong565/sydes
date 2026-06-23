@@ -77,6 +77,13 @@ export function buildServer(deps: AgentDeps): AgentServer {
     return { runId, state: rec.state };
   });
 
+  app.get('/api/logs/:runId', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    if (!runs.has(runId)) return reply.code(404).send({ error: 'unknown runId' });
+    const lines = await controller.logs(runId);
+    return { runId, lines };
+  });
+
   const distDir = resolve('web', 'dist');
   if (existsSync(distDir)) {
     app.register(fastifyStatic, { root: distDir });
