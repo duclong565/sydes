@@ -127,3 +127,25 @@ describe('App brick 3', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/logs/saga', expect.anything()));
   });
 });
+
+describe('App brick 5 (generate load)', () => {
+  it('shows the load control only while running and posts /api/load', async () => {
+    const result = { requests: 200, rps: 20, latencyAvgMs: 8, latencyP95Ms: 18, latencyMaxMs: 95, errorRate: 0 };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url.startsWith('/api/status/')) return new Response(JSON.stringify({ runId: 'saga', state: 'running', services: [] }));
+      if (url.startsWith('/api/load/')) return new Response(JSON.stringify(result));
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWS as unknown as typeof WebSocket);
+    render(<App />);
+    expect(screen.queryByRole('button', { name: 'Generate load' })).toBeNull(); // hidden before running
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate load' })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Generate load' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/load/saga', expect.objectContaining({ method: 'POST' })));
+    await waitFor(() => expect(screen.getByText(/Last load/i)).toBeInTheDocument());
+  });
+});

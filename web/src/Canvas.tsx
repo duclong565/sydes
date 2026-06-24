@@ -5,19 +5,20 @@ import { SdsNode } from './nodes/SdsNode.js';
 
 const nodeTypes: NodeTypes = { sds: SdsNode };
 
-export function Canvas() {
+export function Canvas({ loading = false }: { loading?: boolean }) {
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
   const onConnect = useGraphStore((s) => s.onConnect);
   const setSelected = useGraphStore((s) => s.setSelected);
+  const shownEdges = loading ? edges.map((e) => ({ ...e, animated: true })) : edges;
 
   return (
     <div className="h-full w-full">
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={shownEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
