@@ -82,7 +82,7 @@ class StubK6 {
   ran = false;
   async run(_experimentId: string, _runDir: string): Promise<K6Result> {
     this.ran = true;
-    return { requests: 100, rps: 10, latencyAvgMs: 5, latencyP95Ms: 9, errorRate: 0 };
+    return { requests: 100, rps: 10, latencyAvgMs: 5, latencyP95Ms: 9, latencyMaxMs: 20, errorRate: 0 };
   }
 }
 

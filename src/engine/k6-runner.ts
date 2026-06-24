@@ -8,6 +8,7 @@ export interface K6Result {
   rps: number;            // throughput, req/s
   latencyAvgMs: number;
   latencyP95Ms: number;
+  latencyMaxMs: number;    // peak latency
   errorRate: number;      // 0..1 (http_req_failed)
 }
 
@@ -27,6 +28,7 @@ export function parseSummary(json: string): K6Result {
     rps: num(reqs.rate),
     latencyAvgMs: num(dur.avg),
     latencyP95Ms: num(dur['p(95)']),
+    latencyMaxMs: num(dur.max),
     errorRate: num(failed.value),
   };
 }

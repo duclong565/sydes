@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
@@ -88,6 +88,28 @@ export function buildServer(deps: AgentDeps): AgentServer {
     if (!runs.has(runId)) return reply.code(404).send({ error: 'unknown runId' });
     const lines = await controller.logs(runId);
     return { runId, lines };
+  });
+
+  app.post('/api/load/:runId', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const { rate, durationSec } = req.body as { rate: number; durationSec: number };
+    const rec = runs.get(runId);
+    if (!rec) return reply.code(404).send({ error: 'unknown runId' });
+    if (rec.state !== 'running') return reply.code(409).send({ error: 'run is not running' });
+    if (rec.loadInFlight) return reply.code(409).send({ error: 'a load is already running' });
+    const result = compile(rec.graph, { rate, durationSec });
+    if (!result.ok) return reply.code(400).send(result);
+    if (!result.output.k6) return reply.code(400).send({ error: 'graph has no load entry (needs a service or LB)' });
+    writeFileSync(join(rec.runDir, 'load.js'), result.output.k6);
+    rec.loadInFlight = true;
+    try {
+      rec.lastLoad = await k6.run(runId, rec.runDir);
+      return rec.lastLoad;
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      rec.loadInFlight = false;
+    }
   });
 
   app.register(async (fastify) => {

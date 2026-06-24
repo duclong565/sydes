@@ -1,4 +1,4 @@
-import type { RunStatus } from './api.js';
+import type { RunStatus, K6Result } from './api.js';
 import type { ServiceMetric } from './metrics-store.js';
 
 export type DrawerTab = 'compose' | 'status' | 'logs' | 'metrics';
@@ -12,6 +12,7 @@ interface DrawerProps {
   status: RunStatus | null;
   logs: string;
   metrics: ServiceMetric[];
+  lastLoad: K6Result | null;
 }
 
 function TabButton({ tab, active, onSelect, children }: { tab: DrawerTab; active: boolean; onSelect(t: DrawerTab): void; children: string }) {
@@ -25,7 +26,7 @@ function TabButton({ tab, active, onSelect, children }: { tab: DrawerTab; active
   );
 }
 
-export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs, metrics }: DrawerProps) {
+export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs, metrics, lastLoad }: DrawerProps) {
   return (
     <div className="shrink-0 border-t border-slate-200 bg-white">
       <div className="flex items-center px-2">
@@ -52,18 +53,33 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
             </pre>
           )}
           {tab === 'metrics' && (
-            metrics.length === 0 ? (
-              <div className="text-sm text-slate-400">(no live metrics — run an experiment)</div>
-            ) : (
-              <table className="w-full text-left text-sm">
-                <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th></tr></thead>
-                <tbody className="font-mono">
-                  {metrics.map((m) => (
-                    <tr key={m.service} className="border-t border-slate-100"><td className="py-1">{m.service}</td><td>{m.cpuPercent.toFixed(1)}</td><td>{m.memMB.toFixed(0)} MB</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            )
+            <div>
+              {lastLoad && (
+                <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-indigo-400">Last load</div>
+                  <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-1 font-mono text-indigo-900">
+                    <div>requests {lastLoad.requests}</div>
+                    <div>tput {lastLoad.rps.toFixed(0)}/s</div>
+                    <div>err {(lastLoad.errorRate * 100).toFixed(1)}%</div>
+                    <div>avg {lastLoad.latencyAvgMs.toFixed(1)}ms</div>
+                    <div>p95 {lastLoad.latencyP95Ms.toFixed(0)}ms</div>
+                    <div>peak {lastLoad.latencyMaxMs.toFixed(0)}ms</div>
+                  </div>
+                </div>
+              )}
+              {metrics.length === 0 ? (
+                <div className="text-sm text-slate-400">(no live metrics — run an experiment)</div>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th></tr></thead>
+                  <tbody className="font-mono">
+                    {metrics.map((m) => (
+                      <tr key={m.service} className="border-t border-slate-100"><td className="py-1">{m.service}</td><td>{m.cpuPercent.toFixed(1)}</td><td>{m.memMB.toFixed(0)} MB</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
           {tab === 'status' && (!status ? (
             <div className="text-sm text-slate-400">(press Run to start the experiment)</div>
