@@ -2,9 +2,12 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
+import fastifyWebsocket from '@fastify/websocket';
 import type { Graph, LoadConfig } from '../compiler/types.js';
 import { compile as compileFn } from '../compiler/index.js';
 import type { Runner } from '../engine/runner.js';
+import { MetricsCollector, DockerodeStatsSource, type StatsSource } from '../engine/metrics.js';
+import { serviceName } from './metrics-stream.js';
 import { RunStore } from './runs.js';
 import { ExperimentController } from '../engine/controller.js';
 import { K6Runner } from '../engine/k6-runner.js';
@@ -16,6 +19,7 @@ export interface AgentDeps {
   compile?: typeof compileFn;
   runRoot?: string;
   examplesDir?: string;
+  statsSource?: StatsSource;
 }
 
 export interface AgentServer {
@@ -29,7 +33,9 @@ export function buildServer(deps: AgentDeps): AgentServer {
   const runs = new RunStore();
   const controller = new ExperimentController(deps.runner, { runRoot: deps.runRoot });
   const k6 = new K6Runner(deps.runner);
+  const collector = new MetricsCollector(deps.statsSource ?? new DockerodeStatsSource());
   const app = Fastify({ logger: false });
+  app.register(fastifyWebsocket);
 
   app.get('/api/examples', async () => {
     return readdirSync(examplesDir)
@@ -82,6 +88,35 @@ export function buildServer(deps: AgentDeps): AgentServer {
     if (!runs.has(runId)) return reply.code(404).send({ error: 'unknown runId' });
     const lines = await controller.logs(runId);
     return { runId, lines };
+  });
+
+  app.register(async (fastify) => {
+    fastify.get('/api/metrics/:runId', { websocket: true }, (socket, req) => {
+      const { runId } = (req.params as { runId: string });
+      const rec = runs.get(runId);
+      if (!rec || rec.state !== 'running') {
+        socket.close();
+        return;
+      }
+      const push = async () => {
+        try {
+          const snaps = await collector.sample(runId);
+          socket.send(JSON.stringify(snaps.map((s) => ({ service: serviceName(s.name, runId), cpuPercent: s.cpuPercent, memMB: s.memMB }))));
+        } catch {
+          /* transient stats error: skip this tick */
+        }
+      };
+      void push(); // immediate first frame
+      const timer = setInterval(() => {
+        if (rec.state !== 'running') {
+          clearInterval(timer);
+          socket.close();
+          return;
+        }
+        void push();
+      }, 1500);
+      socket.on('close', () => clearInterval(timer));
+    });
   });
 
   const distDir = resolve('web', 'dist');
