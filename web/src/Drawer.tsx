@@ -1,6 +1,7 @@
 import type { RunStatus } from './api.js';
+import type { ServiceMetric } from './metrics-store.js';
 
-export type DrawerTab = 'compose' | 'status' | 'logs';
+export type DrawerTab = 'compose' | 'status' | 'logs' | 'metrics';
 
 interface DrawerProps {
   open: boolean;
@@ -10,6 +11,7 @@ interface DrawerProps {
   compose: string;
   status: RunStatus | null;
   logs: string;
+  metrics: ServiceMetric[];
 }
 
 function TabButton({ tab, active, onSelect, children }: { tab: DrawerTab; active: boolean; onSelect(t: DrawerTab): void; children: string }) {
@@ -23,14 +25,14 @@ function TabButton({ tab, active, onSelect, children }: { tab: DrawerTab; active
   );
 }
 
-export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs }: DrawerProps) {
+export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs, metrics }: DrawerProps) {
   return (
     <div className="shrink-0 border-t border-slate-200 bg-white">
       <div className="flex items-center px-2">
         <TabButton tab="compose" active={tab === 'compose'} onSelect={onSelectTab}>Compose</TabButton>
         <TabButton tab="status" active={tab === 'status'} onSelect={onSelectTab}>Status</TabButton>
         <TabButton tab="logs" active={tab === 'logs'} onSelect={onSelectTab}>Logs</TabButton>
-        <span className="px-3 py-1.5 text-sm text-slate-300" title="brick 4">Metrics ▸</span>
+        <TabButton tab="metrics" active={tab === 'metrics'} onSelect={onSelectTab}>Metrics</TabButton>
         <div className="flex-1" />
         <button onClick={onToggle} className="px-2 py-1 text-sm text-slate-500">
           {open ? '▾ collapse' : '▴ expand'}
@@ -49,6 +51,20 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
               {logs || '(no logs yet — run an experiment)'}
             </pre>
           )}
+          {tab === 'metrics' && (
+            metrics.length === 0 ? (
+              <div className="text-sm text-slate-400">(no live metrics — run an experiment)</div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th></tr></thead>
+                <tbody className="font-mono">
+                  {metrics.map((m) => (
+                    <tr key={m.service} className="border-t border-slate-100"><td className="py-1">{m.service}</td><td>{m.cpuPercent.toFixed(1)}</td><td>{m.memMB.toFixed(0)} MB</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          )}
           {tab === 'status' && (!status ? (
             <div className="text-sm text-slate-400">(press Run to start the experiment)</div>
           ) : (
@@ -62,7 +78,6 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                   ))}
                 </tbody>
               </table>
-              <div className="mt-1 text-[10px] text-slate-400">live CPU/mem badges arrive as the Metrics tab in brick 4.</div>
             </div>
           ))}
         </div>
