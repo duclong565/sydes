@@ -30,6 +30,7 @@ describe('parseSummary', () => {
       rps: 498.3,
       latencyAvgMs: 12.4,
       latencyP95Ms: 41.0,
+      latencyMaxMs: 120,
       errorRate: 0.018,
     });
   });
@@ -40,12 +41,22 @@ describe('parseSummary', () => {
     expect(r.rps).toBe(0);
     expect(r.latencyAvgMs).toBe(0);
     expect(r.latencyP95Ms).toBe(0);
+    expect(r.latencyMaxMs).toBe(0);
     expect(r.errorRate).toBe(0);
+  });
+
+  it('parses peak latency (http_req_duration.max) into latencyMaxMs', () => {
+    const json = JSON.stringify({ metrics: {
+      http_reqs: { count: 100, rate: 10 },
+      http_req_duration: { avg: 8, 'p(95)': 18, max: 95.5 },
+      http_req_failed: { value: 0 },
+    }});
+    expect(parseSummary(json).latencyMaxMs).toBe(95.5);
   });
 
   it('handles an empty object without throwing', () => {
     expect(parseSummary('{}')).toEqual({
-      requests: 0, rps: 0, latencyAvgMs: 0, latencyP95Ms: 0, errorRate: 0,
+      requests: 0, rps: 0, latencyAvgMs: 0, latencyP95Ms: 0, latencyMaxMs: 0, errorRate: 0,
     });
   });
 });
