@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.log
 .sds-runs/
+.DS_Store
 
 # local (gitignored) handoffs/scratch
 docs/_local/
