@@ -6,6 +6,7 @@ import { Canvas } from './Canvas.js';
 import { Inspector } from './Inspector.js';
 import { Drawer, type DrawerTab } from './Drawer.js';
 import { RunBadge } from './RunBadge.js';
+import { useMetricsStore } from './metrics-store.js';
 
 function errorText(errors: unknown[]): string {
   return errors.map((e) => (e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : JSON.stringify(e))).join('; ');
@@ -24,6 +25,11 @@ export function App() {
   const experimentId = useGraphStore((s) => s.experimentId);
   const setExperimentId = useGraphStore((s) => s.setExperimentId);
   const loadExample = useGraphStore((s) => s.loadExample);
+
+  const metricsByService = useMetricsStore((s) => s.byService);
+  const setSnapshot = useMetricsStore((s) => s.setSnapshot);
+  const clearMetrics = useMetricsStore((s) => s.clear);
+  const [wsLive, setWsLive] = useState(false);
 
   useEffect(() => { api.examples().then(setExamples).catch(() => setError('failed to load examples')); }, []);
 
@@ -57,6 +63,20 @@ export function App() {
   }, [runId, drawerOpen, drawerTab]);
 
   const state = status?.state ?? null;
+
+  // Metrics WebSocket: open while running, close + clear on stop/terminal/unmount.
+  useEffect(() => {
+    if (!runId || state !== 'running') return;
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/api/metrics/${runId}`);
+    ws.onopen = () => setWsLive(true);
+    ws.onmessage = (ev) => {
+      try { setSnapshot(JSON.parse(ev.data)); } catch { /* ignore malformed frame */ }
+    };
+    ws.onclose = () => setWsLive(false);
+    ws.onerror = () => setWsLive(false);
+    return () => { ws.close(); setWsLive(false); clearMetrics(); };
+  }, [runId, state, setSnapshot, clearMetrics]);
 
   async function onPreview() {
     try {
@@ -106,6 +126,7 @@ export function App() {
           {examples.map((e) => (<option key={e.id} value={e.id}>{e.label}</option>))}
         </select>
         <RunBadge state={state} error={status?.error} />
+        {wsLive && <span className="text-xs text-emerald-600">● live metrics</span>}
         <div className="flex-1" />
         <button className="rounded bg-slate-200 px-3 py-1 text-sm" onClick={onPreview}>Preview</button>
         <button className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50" disabled={warming} onClick={onRun}>Run</button>
@@ -134,6 +155,7 @@ export function App() {
         compose={compose}
         status={status}
         logs={logs}
+        metrics={Object.entries(metricsByService).map(([service, m]) => ({ service, cpuPercent: m.cpuPercent, memMB: m.memMB }))}
       />
     </div>
   );
