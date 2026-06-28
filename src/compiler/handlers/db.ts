@@ -20,7 +20,8 @@ export const dbHandler: NodeHandler = {
       name: slugify(node.label),
       image: 'postgres:alpine',
       environment: { POSTGRES_PASSWORD: DB_PASSWORD },
-      ports: ['5432:5432'],
+      // No host port publish: clients connect over the docker network via dbUrl(slug).
+      // Publishing 5432 to the host collides when a graph has >1 db, or with a local postgres.
       healthcheck: {
         test: ['CMD-SHELL', 'pg_isready -U postgres'],
         interval: '5s',
