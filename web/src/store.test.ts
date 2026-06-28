@@ -56,3 +56,40 @@ describe('graph store', () => {
     expect(useGraphStore.getState().toGraph()).toEqual(saga);
   });
 });
+
+describe('onConnect — kafka edge auto-orient', () => {
+  const withDb: Graph = {
+    experimentId: 'wd',
+    nodes: [
+      { id: 'o', type: 'service', label: 'Order Service' },
+      { id: 'k', type: 'kafka', label: 'Order Events' },
+      { id: 'p', type: 'worker', label: 'Payment Worker' },
+      { id: 'd', type: 'db', label: 'Orders DB' },
+    ],
+    edges: [],
+  };
+  const conn = (source: string, target: string) => ({ source, target, sourceHandle: null, targetHandle: null });
+  const onlyEdge = () => useGraphStore.getState().edges[0]!;
+
+  beforeEach(() => useGraphStore.getState().loadExample(withDb));
+
+  it('flips a kafka→worker drag to worker→kafka (subscribe)', () => {
+    useGraphStore.getState().onConnect(conn('k', 'p'));
+    expect({ source: onlyEdge().source, target: onlyEdge().target }).toEqual({ source: 'p', target: 'k' });
+  });
+
+  it('flips a kafka→service drag to service→kafka (publish)', () => {
+    useGraphStore.getState().onConnect(conn('k', 'o'));
+    expect({ source: onlyEdge().source, target: onlyEdge().target }).toEqual({ source: 'o', target: 'k' });
+  });
+
+  it('leaves an already-correct worker→kafka edge as drawn', () => {
+    useGraphStore.getState().onConnect(conn('p', 'k'));
+    expect({ source: onlyEdge().source, target: onlyEdge().target }).toEqual({ source: 'p', target: 'k' });
+  });
+
+  it('does not touch a non-kafka edge (worker→db)', () => {
+    useGraphStore.getState().onConnect(conn('p', 'd'));
+    expect({ source: onlyEdge().source, target: onlyEdge().target }).toEqual({ source: 'p', target: 'd' });
+  });
+});

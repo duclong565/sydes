@@ -1,4 +1,4 @@
-import { ReactFlow, Background, Controls, type NodeTypes } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MarkerType, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useGraphStore } from './store.js';
 import { SdsNode } from './nodes/SdsNode.js';
@@ -12,7 +12,8 @@ export function Canvas({ loading = false }: { loading?: boolean }) {
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
   const onConnect = useGraphStore((s) => s.onConnect);
   const setSelected = useGraphStore((s) => s.setSelected);
-  const shownEdges = loading ? edges.map((e) => ({ ...e, animated: true })) : edges;
+  // Directional arrowhead on every edge so publish/subscribe/persist direction is legible.
+  const shownEdges = edges.map((e) => ({ ...e, animated: loading, markerEnd: { type: MarkerType.ArrowClosed } }));
 
   return (
     <div className="h-full w-full">
