@@ -21,12 +21,14 @@ describe('dbHandler.validate', () => {
 });
 
 describe('dbHandler.compile', () => {
-  it('emits postgres service with port and pg_isready healthcheck', () => {
+  it('emits postgres service with pg_isready healthcheck and no host port publish', () => {
     const g: Graph = { experimentId: 'e', nodes: [{ id: 'd', type: 'db', label: 'Orders DB' }], edges: [] };
     const svc = dbHandler.compile(g.nodes[0]!, buildIndex(g));
     expect(svc.name).toBe('orders-db');
     expect(svc.image).toBe('postgres:alpine');
-    expect(svc.ports).toEqual(['5432:5432']);
+    // No host port: clients reach postgres over the docker network by container name (see dbUrl).
+    // Publishing 5432 collides when a graph has >1 db node, or with a local postgres.
+    expect(svc.ports).toBeUndefined();
     expect(svc.environment.POSTGRES_PASSWORD).toBe('sds');
     expect(svc.healthcheck?.test).toEqual(['CMD-SHELL', 'pg_isready -U postgres']);
   });

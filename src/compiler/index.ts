@@ -35,6 +35,28 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
     handlers[node.type].compile(node, index),
   );
 
+  // 3b. Host-port collision check — a published host port can only be bound once.
+  // Without this, two publishers (e.g. two LBs on :80) reach `docker compose up`
+  // and die with an opaque "port is already allocated"; fail loud at compile time
+  // instead. `seen` maps a service slug back to its node id for the error.
+  const portOwner = new Map<string, string>(); // host port -> owning service slug
+  const portErrors: CompilerError[] = [];
+  for (const svc of services) {
+    for (const mapping of svc.ports ?? []) {
+      const hostPort = mapping.split(':')[0]!;
+      const prior = portOwner.get(hostPort);
+      if (prior) {
+        portErrors.push({
+          nodeId: seen.get(svc.name) ?? svc.name,
+          message: `Host port ${hostPort} is published by both "${prior}" and "${svc.name}" — a host port can only be bound once per experiment`,
+        });
+      } else {
+        portOwner.set(hostPort, svc.name);
+      }
+    }
+  }
+  if (portErrors.length > 0) return { ok: false, errors: portErrors };
+
   // 4. Compose.
   const networkName = `sds-${graph.experimentId}-net`;
   const compose = generateCompose(services, networkName);

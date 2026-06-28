@@ -73,6 +73,32 @@ describe('compile — invalid graph', () => {
   });
 });
 
+describe('compile — host port collision', () => {
+  it('fails loud when two nodes publish the same host port (two LBs → host port 80)', () => {
+    const g: Graph = {
+      experimentId: 'twolb',
+      nodes: [
+        { id: 'la', type: 'lb', label: 'Gateway A' },
+        { id: 'lb', type: 'lb', label: 'Gateway B' },
+        { id: 's1', type: 'service', label: 'Svc One' },
+        { id: 's2', type: 'service', label: 'Svc Two' },
+      ],
+      edges: [
+        { source: 'la', target: 's1' },
+        { source: 'la', target: 's2' },
+        { source: 'lb', target: 's1' },
+        { source: 'lb', target: 's2' },
+      ],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.message).toMatch(/host port 80/i);
+    expect(result.errors[0]!.nodeId).toBe('lb'); // the second publisher's node id
+  });
+});
+
 describe('compile — load balancer', () => {
   it('generates nginx config and targets lb for k6', () => {
     const g: Graph = {
