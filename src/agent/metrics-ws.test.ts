@@ -64,6 +64,56 @@ describe('GET /api/metrics/:runId (websocket)', () => {
     }
   }, 15000);
 
+  it('attaches a writes count to db service frames only', async () => {
+    const dbGraph: Graph = {
+      experimentId: 'wdb',
+      nodes: [
+        { id: 'o', type: 'service', label: 'Order Service' },
+        { id: 'k', type: 'kafka', label: 'Order Events' },
+        { id: 'p', type: 'worker', label: 'Payment Worker' },
+        { id: 'd', type: 'db', label: 'Orders DB' },
+      ],
+      edges: [{ source: 'o', target: 'k' }, { source: 'p', target: 'k' }, { source: 'p', target: 'd' }],
+    };
+    class DbStats implements StatsSource {
+      async list(): Promise<ContainerRef[]> {
+        return [
+          { id: 'c1', name: 'sds-wdb-order-service-1' },
+          { id: 'c2', name: 'sds-wdb-orders-db-1' },
+        ];
+      }
+      async stats(): Promise<DockerStats> { return stat(); }
+    }
+    class CountRunner implements Runner {
+      async run(argv: string[]): Promise<RunResult> {
+        if (argv.includes('psql')) return { code: 0, stdout: '4242\n', stderr: '' };
+        if (argv.includes('inspect')) return { code: 0, stdout: '', stderr: '' };
+        if (argv.includes('ps')) return { code: 0, stdout: '[]', stderr: '' };
+        return { code: 0, stdout: '', stderr: '' };
+      }
+    }
+    const runRoot = mkdtempSync(join(tmpdir(), 'sds-ws-'));
+    const { app, runs } = buildServer({ runner: new CountRunner(), runRoot, statsSource: new DbStats() });
+    try {
+      await app.inject({ method: 'POST', url: '/api/run', payload: { graph: dbGraph } });
+      await runs.get('wdb')!.task;
+      const addr = await app.listen({ port: 0, host: '127.0.0.1' });
+      const ws = new WebSocket(`${addr.replace('http', 'ws')}/api/metrics/wdb`);
+      const frame = await new Promise<string>((resolve, reject) => {
+        ws.on('message', (d) => resolve(d.toString()));
+        ws.on('error', reject);
+        setTimeout(() => reject(new Error('no frame')), 5000);
+      });
+      const parsed = JSON.parse(frame) as Array<{ service: string; cpuPercent: number; memMB: number; writes?: number }>;
+      expect(parsed.find((p) => p.service === 'orders-db')!.writes).toBe(4242);
+      expect(parsed.find((p) => p.service === 'order-service')!.writes).toBeUndefined();
+      ws.close();
+    } finally {
+      await app.close();
+      rmSync(runRoot, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it('closes the socket for an unknown run', async () => {
     const { app } = buildServer({ runner: new FakeRunner(), statsSource: new FakeStats() });
     try {

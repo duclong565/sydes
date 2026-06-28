@@ -8,6 +8,8 @@ import { compile as compileFn } from '../compiler/index.js';
 import type { Runner } from '../engine/runner.js';
 import { MetricsCollector, DockerodeStatsSource, type StatsSource } from '../engine/metrics.js';
 import { serviceName } from './metrics-stream.js';
+import { slugify } from '../compiler/util.js';
+import { dbWrites } from './db-rows.js';
 import { RunStore } from './runs.js';
 import { ExperimentController } from '../engine/controller.js';
 import { K6Runner } from '../engine/k6-runner.js';
@@ -120,12 +122,26 @@ export function buildServer(deps: AgentDeps): AgentServer {
         socket.close();
         return;
       }
+      const dbSlugs = new Set(rec.graph.nodes.filter((n) => n.type === 'db').map((n) => slugify(n.label)));
       const push = async () => {
         try {
           const snaps = await collector.sample(runId);
-          socket.send(JSON.stringify(snaps.map((s) => ({ service: serviceName(s.name, runId), cpuPercent: s.cpuPercent, memMB: s.memMB }))));
+          const frame = await Promise.all(
+            snaps.map(async (s) => {
+              const service = serviceName(s.name, runId);
+              const entry: { service: string; cpuPercent: number; memMB: number; writes?: number } = {
+                service, cpuPercent: s.cpuPercent, memMB: s.memMB,
+              };
+              if (dbSlugs.has(service)) {
+                const w = await dbWrites(deps.runner, s.name);
+                if (w !== undefined) entry.writes = w;
+              }
+              return entry;
+            }),
+          );
+          socket.send(JSON.stringify(frame));
         } catch {
-          /* transient stats error: skip this tick */
+          /* transient stats / exec error: skip this tick */
         }
       };
       void push(); // immediate first frame

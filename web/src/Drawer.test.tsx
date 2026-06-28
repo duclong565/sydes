@@ -52,4 +52,14 @@ describe('Drawer', () => {
     expect(screen.getByText(/Last load/i)).toBeInTheDocument();
     expect(screen.getByText(/peak 95ms/)).toBeInTheDocument();
   });
+  it('renders Writes and Δ columns for a db row, — for a non-db row', () => {
+    const m = [
+      { service: 'order-service', cpuPercent: 12, memMB: 48 },
+      { service: 'db-1', cpuPercent: 17, memMB: 97, writes: 208803, writesPerSec: 402 },
+    ];
+    render(<Drawer open tab="metrics" onToggle={() => {}} onSelectTab={() => {}} compose="" status={null} logs="" metrics={m} lastLoad={null} />);
+    expect(screen.getByText(/208,803/)).toBeInTheDocument();
+    expect(screen.getByText(/\+402/)).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0); // non-db writes/Δ cells
+  });
 });
