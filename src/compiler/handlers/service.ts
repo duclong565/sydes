@@ -22,6 +22,7 @@ export const serviceHandler: NodeHandler = {
         env.KAFKA_BROKER = `${slugify(target.label)}:9092`;
         kafkaDeps.push(slugify(target.label));
       }
+      if (target.type === 'service') env.UPSTREAM_HTTP = `http://${slugify(target.label)}:8080`;
     }
     return {
       name: slugify(node.label),

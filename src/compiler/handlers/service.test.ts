@@ -88,3 +88,31 @@ describe('serviceHandler.compile kafka broker', () => {
     expect(env.KAFKA_BROKER).toBe('events:9092');
   });
 });
+
+describe('serviceHandler.compile upstream cascade', () => {
+  it('sets UPSTREAM_HTTP on a service->service edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'a', type: 'service', label: 'Edge A' },
+        { id: 'b', type: 'service', label: 'Edge B' },
+      ],
+      edges: [{ source: 'a', target: 'b' }],
+    };
+    const env = serviceHandler.compile(g.nodes[0]!, buildIndex(g)).environment;
+    expect(env.UPSTREAM_HTTP).toBe('http://edge-b:8080');
+  });
+
+  it('leaves UPSTREAM_HTTP undefined without a service edge', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'a', type: 'service', label: 'Edge A' },
+        { id: 'd', type: 'db', label: 'Orders DB' },
+      ],
+      edges: [{ source: 'a', target: 'd' }],
+    };
+    const env = serviceHandler.compile(g.nodes[0]!, buildIndex(g)).environment;
+    expect(env.UPSTREAM_HTTP).toBeUndefined();
+  });
+});
