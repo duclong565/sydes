@@ -167,3 +167,86 @@ describe('compile — load balancer volumes', () => {
     expect(result.output.compose).toContain('./nginx.conf:/etc/nginx/conf.d/default.conf:ro');
   });
 });
+
+describe('compile — edge legality', () => {
+  it('rejects a db→service edge (silent no-op) with a node-attributed message', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 's', type: 'service', label: 'Order Service' },
+        { id: 'd', type: 'db', label: 'DB 1' },
+        { id: 's2', type: 'service', label: 'Service 2' },
+      ],
+      edges: [
+        { source: 's', target: 'd' },   // service->db: legal (keeps s and d valid)
+        { source: 'd', target: 's2' },  // db->service: illegal
+      ],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.message).toMatch(/cannot connect to a service/i);
+    expect(result.errors[0]!.nodeId).toBe('d');
+  });
+
+  it('rejects lb→db', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'lb', type: 'lb', label: 'Gateway' },
+        { id: 's1', type: 'service', label: 'Svc One' },
+        { id: 's2', type: 'service', label: 'Svc Two' },
+        { id: 'd', type: 'db', label: 'DB' },
+      ],
+      edges: [
+        { source: 'lb', target: 's1' },
+        { source: 'lb', target: 's2' },
+        { source: 'lb', target: 'd' }, // lb->db: illegal
+      ],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((e) => /cannot connect to a db/i.test(e.message))).toBe(true);
+  });
+
+  it('rejects a self-loop', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [{ id: 'a', type: 'service', label: 'Edge A' }],
+      edges: [{ source: 'a', target: 'a' }],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]!.message).toMatch(/cannot connect to itself/i);
+  });
+
+  it('rejects an edge referencing an unknown node', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [{ id: 'a', type: 'service', label: 'Edge A' }],
+      edges: [{ source: 'a', target: 'ghost' }],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]!.message).toMatch(/unknown node "ghost"/i);
+  });
+
+  it('accepts service→service and wires the cascade into compose', () => {
+    const g: Graph = {
+      experimentId: 'pair',
+      nodes: [
+        { id: 'a', type: 'service', label: 'Edge A' },
+        { id: 'b', type: 'service', label: 'Edge B' },
+      ],
+      edges: [{ source: 'a', target: 'b' }],
+    };
+    const result = compile(g);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.output.compose).toContain('UPSTREAM_HTTP: "http://edge-b:8080"');
+  });
+});

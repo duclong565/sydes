@@ -6,6 +6,13 @@ import { generateNginx } from './generators/nginx.js';
 import { generateK6 } from './generators/k6.js';
 import { slugify } from './util.js';
 
+/** Source→target type combos the compiler actually wires. Everything else is a no-op edge. */
+const ALLOWED_EDGES = new Set<string>([
+  'service>kafka', 'service>db', 'service>service',
+  'worker>kafka', 'worker>db',
+  'lb>service',
+]);
+
 export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
   // 1. Duplicate-label check first.
   const seen = new Map<string, string>();
@@ -28,6 +35,29 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
   for (const node of graph.nodes) {
     errors.push(...handlers[node.type].validate(node, index));
   }
+
+  // Edge-legality pass — default-deny. Reject dangling refs, self-loops, and any
+  // source→target combo no handler wires (silent no-ops like db→service).
+  for (const edge of graph.edges) {
+    const src = index.nodeMap.get(edge.source);
+    const tgt = index.nodeMap.get(edge.target);
+    if (!src || !tgt) {
+      const missing = !src ? edge.source : edge.target;
+      errors.push({ nodeId: edge.source, message: `Edge references unknown node "${missing}"` });
+      continue;
+    }
+    if (edge.source === edge.target) {
+      errors.push({ nodeId: edge.source, message: `A node cannot connect to itself ("${src.label}")` });
+      continue;
+    }
+    if (!ALLOWED_EDGES.has(`${src.type}>${tgt.type}`)) {
+      errors.push({
+        nodeId: edge.source,
+        message: `Invalid connection: a ${src.type} ("${src.label}") cannot connect to a ${tgt.type} ("${tgt.label}")`,
+      });
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // 3. Generation pass.
