@@ -90,7 +90,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   onNodesChange: (changes) => set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) as AppNode[] })),
   onEdgesChange: (changes) => set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),
-  onConnect: (conn) => set((s) => ({ edges: addEdge(conn, s.edges) })),
+  onConnect: (conn) =>
+    set((s) => {
+      // A service/worker ↔ kafka edge always means "declare against the topic" (publish /
+      // subscribe) with kafka as the target. The data appears to flow kafka → consumer, so
+      // users naturally drag it backwards; auto-orient so kafka is the target either way.
+      const typeOf = (id: string | null) => s.nodes.find((n) => n.id === id)?.data.type;
+      let c = conn;
+      if (typeOf(conn.source) === 'kafka' && (typeOf(conn.target) === 'worker' || typeOf(conn.target) === 'service')) {
+        c = { ...conn, source: conn.target, target: conn.source };
+      }
+      return { edges: addEdge(c, s.edges) };
+    }),
 
   loadExample: (graph) =>
     set(() => ({

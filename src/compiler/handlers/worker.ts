@@ -4,12 +4,18 @@ import { dbUrl } from './db.js';
 
 export const workerHandler: NodeHandler = {
   validate(node, index) {
-    const subscribesToKafka = index
-      .outEdges(node.id)
-      .some((e) => index.nodeMap.get(e.target)?.type === 'kafka');
-    return subscribesToKafka
-      ? []
-      : [{ nodeId: node.id, message: 'Worker must subscribe to at least one Kafka' }];
+    const errors = [];
+    const out = index.outEdges(node.id);
+    const subscribesToKafka = out.some((e) => index.nodeMap.get(e.target)?.type === 'kafka');
+    if (!subscribesToKafka) {
+      errors.push({ nodeId: node.id, message: 'Worker must subscribe to at least one Kafka' });
+    }
+    // The worker has a single DB_URL slot; >1 db edge would silently keep only the last.
+    const dbCount = out.filter((e) => index.nodeMap.get(e.target)?.type === 'db').length;
+    if (dbCount > 1) {
+      errors.push({ nodeId: node.id, message: 'Worker may persist to at most one DB — remove the extra DB edge' });
+    }
+    return errors;
   },
   compile(node, index) {
     const topics: string[] = [];

@@ -22,6 +22,33 @@ describe('workerHandler.validate', () => {
     };
     expect(workerHandler.validate(g.nodes[0]!, buildIndex(g))).toEqual([]);
   });
+  it('errors when worker persists to more than one db (DB_URL is single)', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'w', type: 'worker', label: 'W' },
+        { id: 'k', type: 'kafka', label: 'Bus' },
+        { id: 'd1', type: 'db', label: 'DB 1' },
+        { id: 'd2', type: 'db', label: 'DB 2' },
+      ],
+      edges: [{ source: 'w', target: 'k' }, { source: 'w', target: 'd1' }, { source: 'w', target: 'd2' }],
+    };
+    const errors = workerHandler.validate(g.nodes[0]!, buildIndex(g));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/at most one db/i);
+  });
+  it('passes when worker persists to exactly one db', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'w', type: 'worker', label: 'W' },
+        { id: 'k', type: 'kafka', label: 'Bus' },
+        { id: 'd', type: 'db', label: 'DB' },
+      ],
+      edges: [{ source: 'w', target: 'k' }, { source: 'w', target: 'd' }],
+    };
+    expect(workerHandler.validate(g.nodes[0]!, buildIndex(g))).toEqual([]);
+  });
 });
 
 describe('workerHandler.compile', () => {
