@@ -71,10 +71,16 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                 <div className="text-sm text-slate-400">(no live metrics — run an experiment)</div>
               ) : (
                 <table className="w-full text-left text-sm">
-                  <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th></tr></thead>
+                  <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th><th>Writes</th><th>Δ writes/s</th></tr></thead>
                   <tbody className="font-mono">
                     {metrics.map((m) => (
-                      <tr key={m.service} className="border-t border-slate-100"><td className="py-1">{m.service}</td><td>{m.cpuPercent.toFixed(1)}</td><td>{m.memMB.toFixed(0)} MB</td></tr>
+                      <tr key={m.service} className="border-t border-slate-100">
+                        <td className="py-1">{m.service}</td>
+                        <td>{m.cpuPercent.toFixed(1)}</td>
+                        <td>{m.memMB.toFixed(0)} MB</td>
+                        <td>{m.writes !== undefined ? m.writes.toLocaleString() : '—'}</td>
+                        <td>{m.writesPerSec !== undefined ? `+${m.writesPerSec.toFixed(0)}` : '—'}</td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>

@@ -189,7 +189,7 @@ export function App() {
         compose={compose}
         status={status}
         logs={logs}
-        metrics={Object.entries(metricsByService).map(([service, m]) => ({ service, cpuPercent: m.cpuPercent, memMB: m.memMB }))}
+        metrics={Object.entries(metricsByService).map(([service, m]) => ({ service, cpuPercent: m.cpuPercent, memMB: m.memMB, writes: m.writes, writesPerSec: m.writesPerSec }))}
         lastLoad={lastLoad}
       />
     </div>
