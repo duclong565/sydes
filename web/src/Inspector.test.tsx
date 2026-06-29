@@ -47,4 +47,44 @@ describe('Inspector', () => {
     await userEvent.click(screen.getByRole('button', { name: /delete/i }));
     expect(useGraphStore.getState().nodes).toHaveLength(0);
   });
+
+  it('shows a partitions input for kafka nodes (not service fields)', () => {
+    addAndSelect('kafka');
+    render(<Inspector />);
+    expect(screen.getByLabelText('partitions')).toBeInTheDocument();
+    expect(screen.queryByLabelText('latencyMs')).toBeNull();
+  });
+
+  it('edits the partitions of a kafka node', async () => {
+    const id = addAndSelect('kafka');
+    render(<Inspector />);
+    const input = screen.getByLabelText('partitions');
+    await userEvent.clear(input);
+    await userEvent.type(input, '4');
+    expect(useGraphStore.getState().nodes.find((n) => n.id === id)!.data.config!.partitions).toBe(4);
+  });
+
+  it('warns when more workers subscribe than there are partitions', () => {
+    const store = useGraphStore.getState();
+    store.addNode('kafka');
+    store.addNode('worker');
+    store.addNode('worker');
+    store.addNode('worker');
+    const [k, w1, w2, w3] = useGraphStore.getState().nodes.map((n) => n.id);
+    const conn = (source: string) => ({ source, target: k!, sourceHandle: null, targetHandle: null });
+    store.onConnect(conn(w1!));
+    store.onConnect(conn(w2!));
+    store.onConnect(conn(w3!));
+    store.setSelected(k!);
+    render(<Inspector />);
+    expect(screen.getByText(/2 workers will sit idle/i)).toBeInTheDocument(); // 3 subscribers, 1 partition
+  });
+
+  it('shows an inline error and pauses the hint for partitions < 1', () => {
+    const id = addAndSelect('kafka');
+    useGraphStore.getState().updateNode(id, { config: { partitions: 0 } });
+    render(<Inspector />);
+    expect(screen.getByText(/whole number ≥ 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/fix the value/i)).toBeInTheDocument();
+  });
 });

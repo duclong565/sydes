@@ -4,6 +4,13 @@ export function Inspector() {
   const node = useGraphStore((s) => s.nodes.find((n) => n.id === s.selectedId) ?? null);
   const updateNode = useGraphStore((s) => s.updateNode);
   const removeNode = useGraphStore((s) => s.removeNode);
+  const subscribers = useGraphStore((s) => {
+    const id = s.selectedId;
+    if (!id) return 0;
+    return s.edges.filter(
+      (e) => e.target === id && s.nodes.find((n) => n.id === e.source)?.data.type === 'worker',
+    ).length;
+  });
 
   if (!node) {
     return (
@@ -51,6 +58,47 @@ export function Inspector() {
           />
         </>
       )}
+
+      {node.data.type === 'kafka' && (() => {
+        const partitions = cfg.partitions ?? 1;
+        const invalid = !Number.isInteger(partitions) || partitions < 1;
+        let text: string;
+        let tone: string;
+        if (invalid) {
+          text = 'fix the value to see the consumer balance';
+          tone = 'border-slate-200 bg-slate-50 text-slate-500';
+        } else if (subscribers === 0) {
+          text = 'no consumers yet — wire a worker → this topic';
+          tone = 'border-slate-200 bg-slate-50 text-slate-600';
+        } else if (subscribers > partitions) {
+          const idle = subscribers - partitions;
+          text = `⚠ ${idle} worker${idle === 1 ? '' : 's'} will sit idle — a partition feeds only one consumer in a group`;
+          tone = 'border-l-4 border-amber-500 bg-amber-50 text-amber-900';
+        } else if (subscribers === partitions) {
+          text = `✓ ${subscribers} workers · ${partitions} partitions — all active`;
+          tone = 'border-emerald-300 bg-emerald-50 text-emerald-800';
+        } else {
+          const idle = partitions - subscribers;
+          text = `${idle} partition${idle === 1 ? '' : 's'} idle`;
+          tone = 'border-slate-200 bg-slate-50 text-slate-600';
+        }
+        return (
+          <>
+            <label htmlFor="insp-partitions" className="block text-xs text-slate-500">partitions</label>
+            <input
+              id="insp-partitions"
+              aria-label="partitions"
+              type="number"
+              min={1}
+              value={cfg.partitions ?? 1}
+              onChange={(e) => updateNode(node.id, { config: { ...cfg, partitions: Number(e.target.value) } })}
+              className={`mb-1 w-full rounded border px-2 py-1 text-sm ${invalid ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
+            />
+            {invalid && <div className="mb-2 text-xs font-semibold text-red-600">Partitions must be a whole number ≥ 1</div>}
+            <div className={`mb-3 rounded border px-2 py-1.5 text-xs ${tone}`}>{text}</div>
+          </>
+        );
+      })()}
 
       <button
         onClick={() => removeNode(node.id)}
