@@ -34,3 +34,18 @@ describe('generateK6 multi-scenario', () => {
     expect(s).toContain('preAllocatedVUs: 100, maxVUs: 1000');
   });
 });
+
+describe('generateK6 sized body', () => {
+  it('posts an N-KB constant body when bodyKb is set; ping otherwise', () => {
+    const s = generateK6([
+      { slug: 'checkout', port: 8080, rate: 50, bodyKb: 64 },
+      { slug: 'search', port: 8080, rate: 50 },
+    ], 10);
+    // 64 KB = 65536 - 10-byte wrapper = 65526 filler chars
+    expect(s).toContain("const body0 = '{\"pad\":\"' + 'x'.repeat(65526) + '\"}';");
+    expect(s).toContain('http.post(\'http://checkout:8080/\', body0,');
+    // no bodyKb → ping
+    expect(s).toContain('const body1 = JSON.stringify({ ping: true });');
+    expect(s).toContain('http.post(\'http://search:8080/\', body1,');
+  });
+});

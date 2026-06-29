@@ -13,6 +13,7 @@ type Config struct {
 	LatencyMS    int
 	JitterMS     int
 	ErrorRate    float64
+	MsPerKb      float64
 	UpstreamHTTP string
 	KafkaBroker  string // e.g. "kafka:9092"
 	PublishTopic string // e.g. "order-events"
@@ -52,6 +53,12 @@ func FromEnv() (Config, error) {
 		cfg.ErrorRate = f
 	}
 
+	f, err := nonNegFloat("MS_PER_KB")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.MsPerKb = f
+
 	if v := os.Getenv("UPSTREAM_HTTP"); v != "" {
 		u, err := url.ParseRequestURI(v)
 		if err != nil || u.Scheme == "" || u.Host == "" {
@@ -67,6 +74,18 @@ func FromEnv() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func nonNegFloat(key string) (float64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0, nil
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative number, got %q", key, v)
+	}
+	return f, nil
 }
 
 func nonNegInt(key string) (int, error) {

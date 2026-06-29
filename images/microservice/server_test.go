@@ -190,3 +190,15 @@ func TestRoot_NoPublishOnUpstreamCascade(t *testing.T) {
 		t.Errorf("publisher should not be called on upstream cascade, got %d", pub.calls)
 	}
 }
+
+func TestDelayMs(t *testing.T) {
+	cfg := Config{LatencyMS: 10, MsPerKb: 0.5}
+	// 64 KB at 0.5 ms/KB = +32 ms, plus base 10 ms, plus jitter 3 ms = 45 ms
+	if got := delayMs(cfg, 64*1024, 3); got != 45 {
+		t.Errorf("delayMs = %v, want 45", got)
+	}
+	// MsPerKb = 0 → body size has no effect (back-compat)
+	if got := delayMs(Config{LatencyMS: 10}, 64*1024, 0); got != 10 {
+		t.Errorf("delayMs(no msPerKb) = %v, want 10", got)
+	}
+}

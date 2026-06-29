@@ -11,4 +11,8 @@ describe('generateNginx', () => {
     expect(conf).toContain('proxy_pass http://backend;');
     expect(generateNginx(['order-a', 'order-b'])).toBe(conf);
   });
+
+  it('sets client_max_body_size above the 1024 KB body cap', () => {
+    expect(generateNginx(['a', 'b'])).toContain('client_max_body_size 2m;');
+  });
 });

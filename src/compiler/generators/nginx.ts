@@ -7,6 +7,7 @@ export function generateNginx(upstreams: string[]): string {
     '',
     'server {',
     '    listen 80;',
+    '    client_max_body_size 2m;',
     '    location / {',
     '        proxy_pass http://backend;',
     '    }',

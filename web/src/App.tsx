@@ -34,7 +34,11 @@ export function App() {
           const t = n.data.type, r = n.data.config?.loadRate;
           return (t === 'service' || t === 'lb') && Number.isInteger(r) && (r as number) >= 1;
         })
-        .map((n) => ({ nodeId: n.id, rate: n.data.config!.loadRate as number })),
+        .map((n) => ({
+          nodeId: n.id,
+          rate: n.data.config!.loadRate as number,
+          ...(n.data.config?.loadBodyKb ? { bodyKb: n.data.config.loadBodyKb } : {}),
+        })),
     [nodes],
   );
   const totalRps = sources.reduce((acc, t) => acc + t.rate, 0);

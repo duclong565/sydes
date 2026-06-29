@@ -9,6 +9,7 @@ export interface GraphNode {
     errorRate?: number;
     partitions?: number;
     loadRate?: number;   // present + integer ≥1 = this node is a load source at N rps
+    msPerKb?: number;    // service receiver: +ms latency per KB received (float ≥ 0)
   };
 }
 
@@ -23,7 +24,7 @@ export interface Graph {
   edges: GraphEdge[];
 }
 
-export interface LoadTarget { nodeId: string; rate: number }
+export interface LoadTarget { nodeId: string; rate: number; bodyKb?: number }
 export interface LoadConfig { durationSec: number; targets: LoadTarget[] }
 
 export interface LoadTargetResolved { slug: string; targetRps: number }

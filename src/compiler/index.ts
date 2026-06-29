@@ -75,6 +75,9 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
       if (!Number.isInteger(t.rate) || t.rate < 1) {
         errors.push({ nodeId: t.nodeId, message: `Load rate for "${node.label}" must be a whole number ≥ 1` });
       }
+      if (t.bodyKb !== undefined && (!Number.isInteger(t.bodyKb) || t.bodyKb < 1 || t.bodyKb > 1024)) {
+        errors.push({ nodeId: t.nodeId, message: `Body size for "${node?.label ?? t.nodeId}" must be a whole number 1–1024 KB` });
+      }
     }
   }
 
@@ -127,7 +130,7 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
   if (loadConfig) {
     const resolved = loadConfig.targets.map((t) => {
       const node = index.nodeMap.get(t.nodeId)!;
-      return { slug: slugify(node.label), port: node.type === 'lb' ? 80 : 8080, rate: t.rate };
+      return { slug: slugify(node.label), port: node.type === 'lb' ? 80 : 8080, rate: t.rate, bodyKb: t.bodyKb };
     });
     output.k6 = generateK6(resolved, loadConfig.durationSec);
     output.loadTargets = resolved.map((r) => ({ slug: r.slug, targetRps: r.rate }));

@@ -123,4 +123,26 @@ describe('Inspector', () => {
     render(<Inspector />);
     expect(screen.queryByRole('button', { name: /load source/i })).toBeNull();
   });
+
+  it('shows payload sensitivity on a service and flags a negative value', () => {
+    const id = addAndSelect('service');
+    useGraphStore.getState().updateNode(id, { config: { msPerKb: -1 } });
+    render(<Inspector />);
+    expect(screen.getByLabelText('msPerKb')).toBeInTheDocument();
+    expect(screen.getByText(/Must be ≥ 0/i)).toBeInTheDocument();
+  });
+
+  it('shows body size on a load source and flags > 1024', () => {
+    const id = addAndSelect('service');
+    useGraphStore.getState().updateNode(id, { config: { loadRate: 50, loadBodyKb: 5000 } });
+    render(<Inspector />);
+    expect(screen.getByLabelText('body size')).toBeInTheDocument();
+    expect(screen.getByText(/Max body size is 1024 KB/i)).toBeInTheDocument();
+  });
+
+  it('shows no payload-sensitivity field on a kafka node', () => {
+    addAndSelect('kafka');
+    render(<Inspector />);
+    expect(screen.queryByLabelText('msPerKb')).toBeNull();
+  });
 });

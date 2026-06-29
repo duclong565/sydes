@@ -95,3 +95,21 @@ func TestFromEnv_NoKafka(t *testing.T) {
 		t.Errorf("expected empty kafka cfg, got %+v", cfg)
 	}
 }
+
+func TestMsPerKb(t *testing.T) {
+	for _, k := range []string{"PORT", "LATENCY_MS", "LATENCY_JITTER_MS", "ERROR_RATE", "UPSTREAM_HTTP", "MS_PER_KB"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("MS_PER_KB", "0.5")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatalf("FromEnv: %v", err)
+	}
+	if cfg.MsPerKb != 0.5 {
+		t.Errorf("MsPerKb = %v, want 0.5", cfg.MsPerKb)
+	}
+	t.Setenv("MS_PER_KB", "-1")
+	if _, err := FromEnv(); err == nil {
+		t.Error("expected error for negative MS_PER_KB")
+	}
+}

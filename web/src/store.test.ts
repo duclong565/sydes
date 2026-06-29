@@ -111,3 +111,11 @@ describe('loadRate config', () => {
     expect(useGraphStore.getState().toGraph().nodes[0].config).toEqual({ loadRate: 50 });
   });
 });
+
+describe('payload sensitivity config', () => {
+  it('round-trips msPerKb + loadBodyKb through toGraph', () => {
+    const s = useGraphStore.getState();
+    s.loadExample({ experimentId: 'e', nodes: [{ id: 's', type: 'service', label: 'Checkout', config: { msPerKb: 0.5, loadBodyKb: 64 } }], edges: [] });
+    expect(useGraphStore.getState().toGraph().nodes[0].config).toEqual({ msPerKb: 0.5, loadBodyKb: 64 });
+  });
+});
