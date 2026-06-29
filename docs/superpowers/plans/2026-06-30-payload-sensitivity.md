@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Stacks on PR #29** (the VU cap + `dropped/s` + the post-#29 `generateK6`/`K6Result`). Branch off `main` only **after #29 merges**; the code below assumes the post-#29 `generateK6` (with `const MAX_VUS = 2000`, `K6Target = { slug, port, rate }`) and `K6Result` (with `droppedRps`).
+- **Self-contained against current `main`.** Every task edits code that exists on `main` today — none depend on PR #29's contents. But #29 and this brick both touch `generateK6` (`k6.ts`), `index.ts`, and `api.ts`, so to avoid merge conflicts, **land #29 first and rebase** this branch onto it. At implementation time, **derive the real `K6Result.total` shape and `generateK6`'s VU lines from the actual merged code** — do not assume field names like `droppedRps` or a `MAX_VUS` constant (they may or may not be present depending on #29).
 - **Latency-only v1.** Body affects the service's sleep, never CPU work.
 - **Sized body only.** One constant ≈N-KB string built once at k6 module scope, reused every iteration. No template / per-request randomness.
 - **Two knobs, two roles:** `msPerKb` (float ≥ 0) only on `service` nodes; `loadBodyKb` (int 1–1024) only on load sources (service/lb), carried in the load request.
@@ -249,7 +249,7 @@ git commit -m "feat(compiler): emit MS_PER_KB from service config.msPerKb + vali
 - Test: `src/compiler/generators/k6.test.ts`, `src/compiler/index.test.ts`
 
 **Interfaces:**
-- Consumes: post-#29 `generateK6(targets: K6Target[], durationSec)` with `const MAX_VUS = 2000`.
+- Consumes: the current multi-scenario `generateK6(targets: K6Target[], durationSec)` and its `fns`/scenario construction. The body edit below is **orthogonal to VU sizing** — don't touch the `preAllocatedVUs`/`maxVUs` lines (whatever they are at implementation time).
 - Produces: `K6Target = { slug, port, rate, bodyKb? }`; `LoadTarget = { nodeId, rate, bodyKb? }`; sized body posted per target.
 
 - [ ] **Step 1: Add `bodyKb` to `LoadTarget`** in `src/compiler/types.ts`:
@@ -329,7 +329,7 @@ ${fns}
 - [ ] **Step 5: Run the generator test — verify it passes**
 
 Run: `npx vitest run src/compiler/generators/k6.test.ts`
-Expected: PASS (including the post-#29 VU-cap tests).
+Expected: PASS (the new sized-body test + all existing generator tests).
 
 - [ ] **Step 6: Write the failing compiler resolve/validate test** — append to `src/compiler/index.test.ts` (inside the existing load-targeting describe or a new one):
 
@@ -603,7 +603,9 @@ git commit -m "feat(web): Inspector payload sensitivity (ms/KB) + body size (KB)
 
 ```tsx
 it('includes bodyKb in the load targets when set', async () => {
-  const spy = vi.spyOn(api, 'load').mockResolvedValue({ perTarget: [], total: { requests: 0, targetRps: 0, achievedRps: 0, dropped: 0, droppedRps: 0, errorRate: 0 } });
+  // the resolved value is never asserted (we check the CALL args), so cast a minimal
+  // stub rather than coupling to the current K6Result.total shape:
+  const spy = vi.spyOn(api, 'load').mockResolvedValue({ perTarget: [], total: {} } as unknown as Awaited<ReturnType<typeof api.load>>);
   // arrange a running experiment with a service node config { loadRate: 50, loadBodyKb: 64 } (reuse the suite's running-state setup)
   // act: click "Run load"
   expect(spy).toHaveBeenCalledWith(expect.any(String), expect.any(Number),
@@ -611,7 +613,7 @@ it('includes bodyKb in the load targets when set', async () => {
 });
 ```
 
-(Use the existing `App.test.tsx` harness that stands up the `running` state + marks a load source; add `loadBodyKb: 64` to that node's config.)
+(Use the existing `App.test.tsx` harness that stands up the `running` state + marks a load source; add `loadBodyKb: 64` to that node's config. The `as unknown as …` cast keeps the mock valid whatever `K6Result.total`'s exact fields are.)
 
 - [ ] **Step 3: Run it — verify it fails**
 
