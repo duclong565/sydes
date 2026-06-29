@@ -10,7 +10,7 @@ SysDes lets you drag-and-drop system components onto a canvas, wire them togethe
 - **Graph Compiler** — translates your diagram into a `docker-compose.yml` (+ nginx config + k6 load script).
 - **Real Docker runtime** — containers spin up in an isolated bridge network; the Saga chain (service → Kafka → worker → Postgres) runs end-to-end.
 - **Run UX** — Preview the compiled compose, Run (with a "Warming up…" state for Kafka cold start), watch per-service status, and tail container logs.
-- *Coming next:* live CPU/memory + throughput/latency badges overlaid on the canvas.
+- **Live metrics** — per-node CPU/memory badges stream onto the canvas over a WebSocket while the run is live, plus per-DB write counts and a Metrics drawer table.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Browser SPA ⇄ HTTP/JSON ⇄ local Node **agent** (Fastify) ⇄ Docker. The age
 | Docker integration | dockerode + `docker compose` CLI |
 | Service images | Go (`sds/microservice`, `sds/worker`) |
 | Load generation | k6 |
-| Metrics | dockerode `container.stats` (CPU/mem) |
+| Metrics | dockerode `container.stats` (CPU/mem) + per-DB writes, streamed over a `@fastify/websocket` channel |
 
 ## Quick start
 
@@ -49,7 +49,7 @@ npm run sim examples/saga.json --load --metrics
 
 ## Status
 
-🟢 **Working end-to-end.** The engine (Graph Compiler → Docker → k6 → metrics) and both Go images are complete, and the Saga chain runs end-to-end. The UI is built up through **run/teardown UX + logs** (canvas, palette, inspector, run controls, status + Logs drawer); **live metric badges over WebSocket are next**.
+🟢 **Working end-to-end.** The engine (Graph Compiler → Docker → k6 → metrics) and both Go images are complete, and the Saga chain runs end-to-end. The full UI epic is in: canvas, palette, inspector, run/teardown UX + Logs drawer, and **live per-node metric badges over WebSocket** (Metrics drawer). Recent additions: edge-legality validation, service→service cascades, DB write-visibility, and a Kafka partitions field. Next up is post-epic packaging — cloud SPA hosting + WebSocket relay + `npx sds-agent`.
 
 ## Docs
 
