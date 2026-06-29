@@ -125,7 +125,8 @@ export function App() {
   }
 
   const warming = state === 'starting';
-  const stoppable = state === 'starting' || state === 'running';
+  // 'error' too: a failed run can leave a half-up stack — Stop tears it down (agent /api/stop is state-agnostic).
+  const stoppable = state === 'starting' || state === 'running' || state === 'error';
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-800">

@@ -113,6 +113,24 @@ describe('App brick 3', () => {
     await waitFor(() => expect(screen.getByText(/Stopped/)).toBeInTheDocument());
   });
 
+  it('lets you Stop an errored run to tear down the half-up stack', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url === '/api/stop') return new Response(JSON.stringify({ runId: 'saga', state: 'stopped' }));
+      if (url.startsWith('/api/status/')) return new Response(JSON.stringify({ runId: 'saga', state: 'error', error: 'compose up failed', services: [] }));
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    // run goes to error → Stop must be clickable so the user can clean up the partial stack
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/stop', expect.objectContaining({ method: 'POST' })));
+    await waitFor(() => expect(screen.getByText(/Stopped/)).toBeInTheDocument());
+  });
+
   it('polls /api/logs when the Logs tab is open', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
