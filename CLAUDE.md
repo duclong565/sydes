@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **System Design Sandbox (sydes)** — drag-and-drop system-architecture simulation. Users wire services visually, press Run, and real Docker containers spin up under k6 load with live per-service status/logs.
 
-Status: 🟢 **Engine complete; UI in progress.** The orchestration engine + two Go images are done and merged. The UI is being built as an **agent + browser SPA** (not Electron — see Architecture): bricks 1–3 (agent HTTP API, React Flow canvas, run/teardown UX + logs) are merged; brick 4 (live metric badges over WebSocket) is next.
+Status: 🟢 **Engine + full UI epic complete.** The orchestration engine + two Go images + the **agent + browser SPA** (not Electron — see Architecture) are all done and merged. UI bricks 1–4 are in: agent HTTP API, React Flow canvas, run/teardown UX + logs, and **live per-node metric badges over WebSocket**. Several post-epic features have also shipped: edge-legality (default-deny), service→service upstream cascade, DB write-visibility badges, and a Kafka partitions field. Post-epic remaining: cloud hosting + WebSocket relay + `npx sds-agent` packaging.
 
 ## Architecture
 
@@ -41,7 +41,7 @@ Docker runtime (isolated bridge network per experiment)
 | Docker integration | dockerode + `docker compose` CLI (spawned via a `Runner` seam) |
 | Custom service images | Go (scratch, `CGO_ENABLED=0`) — `sds/microservice`, `sds/worker` |
 | Load generator | k6 (one-shot `grafana/k6` container) |
-| Metrics | dockerode `container.stats` (CPU%/mem). **No Prometheus/cAdvisor.** WebSocket streaming to the canvas is brick 4 (not yet built). |
+| Metrics | dockerode `container.stats` (CPU%/mem) + per-db write count, **streamed to the canvas over a `@fastify/websocket` channel** (`GET /api/metrics/:runId`). **No Prometheus/cAdvisor.** |
 | Tests | vitest (root engine/agent + `web/`), gated real-Docker smokes |
 
 ## Repo Layout
@@ -66,10 +66,13 @@ Node types: `service | kafka | worker | db | lb` (no Redis node).
 **Edge semantics** (inferred from source+target node types):
 - `Service → Kafka` = publish (`PUBLISH_TOPIC` + `KAFKA_BROKER`)
 - `Worker → Kafka` = subscribe (`SUBSCRIBE_TOPICS` + `KAFKA_BROKER`)
+- `Service → Service` = upstream cascade (`UPSTREAM_HTTP` — the source calls the target)
 - `LB → [Service, Service]` = round-robin nginx upstream
 - `Service → DB` / `Worker → DB` = sets `DB_URL` (a full DSN: `postgres://postgres:sds@<slug>:5432/postgres?sslmode=disable`). The **worker** persists to it (pgx); the microservice does not read it.
 
-The compiler fails loud — it refuses to generate and reports clear errors rather than emitting best-effort output.
+A `kafka` node carries a `config.partitions` (default 1) → wires `--partitions N` on topic create; validated as a positive int.
+
+**Edge legality — default-deny allowlist** (`src/compiler/index.ts`): only the edge shapes above are legal. The compiler fails loud — it rejects dangling refs, self-loops, and any non-allowlisted source→target pair rather than emitting best-effort output.
 
 ## Image Env-Var APIs
 
@@ -79,7 +82,7 @@ The compiler fails loud — it refuses to generate and reports clear errors rath
 
 ## Agent HTTP API (`src/agent/`)
 
-`GET /api/examples` · `POST /api/compile` (preview) · `POST /api/run` (async → `runId`, runs in background) · `GET /api/status/:runId` (poll) · `POST /api/stop` · `GET /api/logs/:runId`. Built via `buildServer(deps)` with the engine `Runner` injected (a `FakeRunner` is used in tests, so the whole agent is testable without Docker).
+`GET /api/examples` · `POST /api/compile` (preview) · `POST /api/run` (async → `runId`, runs in background) · `GET /api/status/:runId` (poll) · `POST /api/stop` (also works on an **errored** run, to clean up a partial stack) · `GET /api/logs/:runId` · `GET /api/metrics/:runId` (**WebSocket** — streams per-node CPU%/mem + per-db write count). Built via `buildServer(deps)` with the engine `Runner` injected (a `FakeRunner` is used in tests, so the whole agent is testable without Docker). DB writes come from `dbWrites()` (`src/agent/db-rows.ts`): `docker exec psql` → `sum(n_tup_ins)` over `pg_stat_user_tables`.
 
 ## Key Technical Constraints
 
@@ -87,7 +90,7 @@ The compiler fails loud — it refuses to generate and reports clear errors rath
 - **apache/kafka:3.7.2** (NOT `latest`/4.x — 4.x breaks kafka-go v0.4.51 consumer groups); KRaft single-node env.
 - **Isolated networks**: each experiment gets its own Docker bridge network; container names are the DNS hostnames. Compose network name is doubled: `sds-<id>_sds-<id>-net`.
 - **Go not on PATH** in this env: prefix Go commands with `export PATH="$PATH:/usr/local/go/bin"`. Worker module is `go 1.25` (pgx); microservice `go 1.23`.
-- **Metrics mapping (brick 4)**: `container.stats` CPU%/mem → per-node badges; k6 `http_req_duration`/`http_reqs` → throughput/latency overlay.
+- **Metrics mapping**: `container.stats` CPU%/mem → per-node badges (live over the metrics WebSocket); per-db `n_tup_ins` → Writes/Δ badge + Metrics-table columns; k6 `http_req_duration`/`http_reqs` → throughput/latency overlay.
 
 ## Commands
 
@@ -114,6 +117,6 @@ RUN_DOCKER=1 npx vitest run <file>.smoke.test.ts     # gated real-Docker smokes
 ## Roadmap
 
 - ✅ Engine: Graph Compiler, Docker Controller, LB routing, k6 Runner, Metrics Collector, Go images, Saga (kafka→worker→postgres) chain, robustness cleanup.
-- ✅ UI epic bricks 1–3: agent HTTP API + SPA shell; React Flow canvas → graph JSON; run/teardown UX + warmup + Logs tab.
-- ⬜ UI brick 4: live per-node metric badges over WebSocket (Metrics drawer tab) — consumes the engine's `container.stats`; adds the project's first WebSocket.
-- ⬜ Post-epic: cloud SPA hosting + WebSocket relay + token pairing + `npx sds-agent` packaging.
+- ✅ UI epic bricks 1–4: agent HTTP API + SPA shell; React Flow canvas → graph JSON; run/teardown UX + warmup + Logs tab; **live per-node metric badges over WebSocket** (Metrics drawer tab, the project's first WebSocket).
+- ✅ Post-epic features: edge-legality (default-deny allowlist) + service→service upstream cascade; DB write-visibility badges (`n_tup_ins` over the metrics WS); Kafka partitions field (`--partitions N` + consumer-balance hint); Stop works on an errored run.
+- ⬜ Post-epic remaining: cloud SPA hosting + WebSocket relay + token pairing + `npx sds-agent` packaging.
