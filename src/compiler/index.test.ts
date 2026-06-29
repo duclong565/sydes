@@ -29,7 +29,7 @@ describe('compile — valid graph', () => {
   });
 
   it('generates a k6 script when loadConfig is given', () => {
-    const result = compile(sagaGraph, { rate: 5000, durationSec: 30 });
+    const result = compile(sagaGraph, { durationSec: 30, targets: [{ nodeId: 'o', rate: 5000 }] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.output.k6).toContain('rate: 5000');
@@ -116,7 +116,7 @@ describe('compile — load balancer', () => {
         { source: 's2', target: 'd' },
       ],
     };
-    const result = compile(g, { rate: 100, durationSec: 10 });
+    const result = compile(g, { durationSec: 10, targets: [{ nodeId: 'lb', rate: 100 }] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.output.nginx).toContain('server svc-one:8080;');
@@ -165,6 +165,67 @@ describe('compile — load balancer volumes', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.output.compose).toContain('./nginx.conf:/etc/nginx/conf.d/default.conf:ro');
+  });
+});
+
+describe('compile — load targeting', () => {
+  // A minimal valid graph: two services wired together (service→service is legal).
+  // 'b' is a worker type (ineligible as load target) for the ineligible-type test.
+  const base = (extra: Partial<Graph> = {}): Graph => ({
+    experimentId: 'e',
+    nodes: [
+      { id: 's', type: 'service', label: 'Checkout' },
+      { id: 't', type: 'service', label: 'Backend' },
+    ],
+    edges: [{ source: 's', target: 't' }],
+    ...extra,
+  });
+
+  it('resolves targets → one k6 scenario + loadTargets (no auto-pick)', () => {
+    const r = compile(base(), { durationSec: 10, targets: [{ nodeId: 's', rate: 50 }] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.output.k6).toContain("'checkout': { executor: 'constant-arrival-rate', rate: 50");
+    expect(r.output.loadTargets).toEqual([{ slug: 'checkout', targetRps: 50 }]);
+  });
+
+  it('fails loud on zero targets', () => {
+    const r = compile(base(), { durationSec: 10, targets: [] });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.some((e) => /at least one target/i.test(e.message))).toBe(true);
+  });
+
+  it('fails loud on an ineligible target type (targets a non-existent nodeId that maps to a kafka node)', () => {
+    // Use a graph that has a kafka node (ineligible target) alongside valid service edges.
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [
+        { id: 'o', type: 'service', label: 'Order Service' },
+        { id: 'k', type: 'kafka', label: 'Order Events' },
+        { id: 'p', type: 'worker', label: 'Payment Worker' },
+      ],
+      edges: [{ source: 'o', target: 'k' }, { source: 'p', target: 'k' }],
+    };
+    const r = compile(g, { durationSec: 10, targets: [{ nodeId: 'k', rate: 50 }] });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.some((e) => /must be a service or lb/i.test(e.message))).toBe(true);
+  });
+
+  it('fails loud on a non-integer / <1 rate', () => {
+    const r = compile(base(), { durationSec: 10, targets: [{ nodeId: 's', rate: 2.5 }] });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.some((e) => /whole number ≥ 1/.test(e.message))).toBe(true);
+  });
+
+  it('omits k6 when no load config is supplied', () => {
+    const r = compile(base());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.output.k6).toBeUndefined();
+    expect(r.output.loadTargets).toBeUndefined();
   });
 });
 

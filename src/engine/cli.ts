@@ -8,6 +8,16 @@ import { K6Runner } from './k6-runner.js';
 import { MetricsCollector, DockerodeStatsSource } from './metrics.js';
 import type { MetricsSnapshot } from './metrics.js';
 
+function buildLoad(graph: Graph, rate: number, durationSec: number): LoadConfig {
+  const eligible = graph.nodes.filter((n) => n.type === 'service' || n.type === 'lb');
+  const marked = eligible.filter((n) => Number.isInteger(n.config?.loadRate) && (n.config!.loadRate as number) >= 1);
+  if (marked.length > 0) {
+    return { durationSec, targets: marked.map((n) => ({ nodeId: n.id, rate: n.config!.loadRate as number })) };
+  }
+  const entry = eligible.find((n) => n.type === 'lb') ?? eligible[0];
+  return { durationSec, targets: entry ? [{ nodeId: entry.id, rate }] : [] };
+}
+
 export interface Logger {
   log(s: string): void;
   error(s: string): void;
@@ -55,8 +65,9 @@ export async function runSim(
     }
 
     if (opts.loadConfig && opts.k6Runner) {
-      out.log(`🔥 running load: ${opts.loadConfig.rate} rps for ${opts.loadConfig.durationSec}s…`);
-      const k6p = opts.k6Runner.run(id, runDir);
+      const totalRps = opts.loadConfig.targets.reduce((s, t) => s + t.rate, 0);
+      out.log(`🔥 running load: ${opts.loadConfig.targets.length} target(s), ${totalRps} rps total for ${opts.loadConfig.durationSec}s…`);
+      const k6p = opts.k6Runner.run(id, runDir, result.output.loadTargets ?? [], opts.loadConfig.durationSec);
       if (opts.metrics) {
         const m = opts.metrics;
         let settled = false;
@@ -64,24 +75,16 @@ export async function runSim(
         while (!settled) {
           await new Promise((r) => setTimeout(r, m.intervalMs));
           if (settled) break;
-          try {
-            out.log('metrics:');
-            printSnaps(await m.collector.sample(id));
-          } catch (e) {
-            out.error(`metrics sample failed: ${(e as Error).message}`);
-          }
+          try { out.log('metrics:'); printSnaps(await m.collector.sample(id)); }
+          catch (e) { out.error(`metrics sample failed: ${(e as Error).message}`); }
         }
       }
       const k = await k6p;
-      out.log(
-        `load: requests=${k.requests}  rps=${k.rps.toFixed(1)}  ` +
-          `avg=${k.latencyAvgMs.toFixed(1)}ms  p95=${k.latencyP95Ms.toFixed(1)}ms  ` +
-          `errors=${(k.errorRate * 100).toFixed(1)}%`,
-      );
-      if (opts.metrics) {
-        out.log('metrics (final):');
-        printSnaps(await opts.metrics.collector.sample(id));
+      out.log(`load total: requests=${k.total.requests} rps=${k.total.achievedRps.toFixed(1)} dropped=${k.total.dropped} errors=${(k.total.errorRate * 100).toFixed(1)}%`);
+      for (const t of k.perTarget) {
+        out.log(`  ${t.slug}: target=${t.targetRps} achieved=${t.achievedRps.toFixed(1)} dropped=${t.dropped} p95=${t.latencyP95Ms.toFixed(1)}ms`);
       }
+      if (opts.metrics) { out.log('metrics (final):'); printSnaps(await opts.metrics.collector.sample(id)); }
     }
   } catch (e) {
     await controller.down(id);
@@ -131,7 +134,8 @@ export async function main(argv: string[]): Promise<void> {
 
   const opts: SimOptions = {};
   if (load) {
-    opts.loadConfig = { rate, durationSec };
+    const graph = JSON.parse(readFileSync(graphPath, 'utf8')) as Graph;
+    opts.loadConfig = buildLoad(graph, rate, durationSec);
     opts.k6Runner = new K6Runner(new RealRunner());
   }
   if (metricsOn) {

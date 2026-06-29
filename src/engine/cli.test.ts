@@ -80,9 +80,12 @@ describe('runSim', () => {
 
 class StubK6 {
   ran = false;
-  async run(_experimentId: string, _runDir: string): Promise<K6Result> {
+  async run(_experimentId: string, _runDir: string, _targets: { slug: string; targetRps: number }[], _durationSec: number): Promise<K6Result> {
     this.ran = true;
-    return { requests: 100, rps: 10, latencyAvgMs: 5, latencyP95Ms: 9, latencyMaxMs: 20, errorRate: 0 };
+    return {
+      perTarget: [{ slug: 'edge-a', targetRps: 20, achievedRps: 10, requests: 100, dropped: 0, errorRate: 0, latencyAvgMs: 5, latencyP95Ms: 9, latencyMaxMs: 20 }],
+      total: { requests: 100, targetRps: 20, achievedRps: 10, dropped: 0, errorRate: 0 },
+    };
   }
 }
 
@@ -92,11 +95,11 @@ describe('runSim with load', () => {
     const c = new ExperimentController(new StubRunner(), { runRoot: mkdtempSync(join(tmpdir(), 'sds-run-')) });
     const k6 = new StubK6();
     await runSim(tmpGraph(pairGraph), c, out, {
-      loadConfig: { rate: 20, durationSec: 3 },
+      loadConfig: { durationSec: 3, targets: [{ nodeId: 'a', rate: 20 }] },
       k6Runner: k6,
     });
     expect(k6.ran).toBe(true);
-    expect(out.lines.some((l) => l.includes('load: requests=100'))).toBe(true);
+    expect(out.lines.some((l) => l.includes('load total: requests=100'))).toBe(true);
   });
 
   it('does not run k6 when no loadConfig is given', async () => {
@@ -132,7 +135,7 @@ describe('runSim with metrics', () => {
     const col = new StubCollector();
     const k6 = new StubK6();
     await runSim(tmpGraph(pairGraph), c, out, {
-      loadConfig: { rate: 20, durationSec: 3 },
+      loadConfig: { durationSec: 3, targets: [{ nodeId: 'a', rate: 20 }] },
       k6Runner: k6,
       metrics: { collector: col, intervalMs: 10 },
     });

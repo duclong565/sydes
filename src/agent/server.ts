@@ -94,18 +94,18 @@ export function buildServer(deps: AgentDeps): AgentServer {
 
   app.post('/api/load/:runId', async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const { rate, durationSec } = req.body as { rate: number; durationSec: number };
+    const { durationSec, targets } = req.body as { durationSec: number; targets: { nodeId: string; rate: number }[] };
     const rec = runs.get(runId);
     if (!rec) return reply.code(404).send({ error: 'unknown runId' });
     if (rec.state !== 'running') return reply.code(409).send({ error: 'run is not running' });
     if (rec.loadInFlight) return reply.code(409).send({ error: 'a load is already running' });
-    const result = compile(rec.graph, { rate, durationSec });
+    const result = compile(rec.graph, { durationSec, targets });
     if (!result.ok) return reply.code(400).send(result);
-    if (!result.output.k6) return reply.code(400).send({ error: 'graph has no load entry (needs a service or LB)' });
+    if (!result.output.k6) return reply.code(400).send({ error: 'no load entry (needs a service or lb target)' });
     writeFileSync(join(rec.runDir, 'load.js'), result.output.k6);
     rec.loadInFlight = true;
     try {
-      rec.lastLoad = await k6.run(runId, rec.runDir);
+      rec.lastLoad = await k6.run(runId, rec.runDir, result.output.loadTargets!, durationSec);
       return rec.lastLoad;
     } catch (err) {
       return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });

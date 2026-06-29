@@ -16,7 +16,7 @@ export async function runExperiment(
     rec.services = await deps.controller.status(rec.id);
     rec.state = 'running';
     if (load) {
-      await deps.k6.run(rec.id, rec.runDir);
+      await deps.k6.run(rec.id, rec.runDir, output.loadTargets ?? [], load.durationSec);
     }
   } catch (err) {
     rec.state = 'error';

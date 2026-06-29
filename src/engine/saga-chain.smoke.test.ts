@@ -12,7 +12,7 @@ import { K6Runner } from './k6-runner.js';
 describe.skipIf(!process.env.RUN_DOCKER)('saga chain smoke (real docker)', () => {
   it('service publishes -> kafka -> worker consumes', async () => {
     const graph = JSON.parse(readFileSync('examples/saga.json', 'utf8')) as Graph;
-    const result = compile(graph, { rate: 20, durationSec: 3 });
+    const result = compile(graph, { durationSec: 3, targets: [{ nodeId: 'o', rate: 20 }] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -24,7 +24,7 @@ describe.skipIf(!process.env.RUN_DOCKER)('saga chain smoke (real docker)', () =>
     try {
       await c.preflight(result.output);
       await c.up(id); // kafka cold start; --wait blocks until healthy
-      await new K6Runner(runner).run(id, runDir); // fire load at the service -> it publishes
+      await new K6Runner(runner).run(id, runDir, result.output.loadTargets!, 3); // fire load at the service -> it publishes
       // Poll the worker logs until it has consumed (instead of a fixed drain sleep).
       let workerLogs = '';
       for (let i = 0; i < 15; i++) {

@@ -5,13 +5,34 @@ import { join } from 'node:path';
 import { K6Runner, parseSummary } from './k6-runner.js';
 import type { Runner, RunResult } from './runner.js';
 
-// Representative k6 --summary-export shape (flat under metrics).
-export const fixture = JSON.stringify({
+const summary = JSON.stringify({
   metrics: {
-    http_reqs: { count: 30000, rate: 498.3 },
-    http_req_duration: { avg: 12.4, 'p(95)': 41.0, max: 120 },
-    http_req_failed: { value: 0.018, passes: 29460, fails: 540 },
+    http_reqs: { count: 2500, rate: 250 },
+    http_req_failed: { value: 0.01 },
+    dropped_iterations: { count: 120 },
+    'http_reqs{scenario:checkout}': { count: 500, rate: 50 },
+    'http_req_duration{scenario:checkout}': { avg: 22.1, 'p(95)': 40, max: 96 },
+    'http_req_failed{scenario:checkout}': { value: 0.014 },
+    'dropped_iterations{scenario:checkout}': { count: 120 },
+    'http_reqs{scenario:gateway}': { count: 2000, rate: 200 },
+    'http_req_duration{scenario:gateway}': { avg: 9.4, 'p(95)': 18, max: 61 },
+    'http_req_failed{scenario:gateway}': { value: 0.002 },
+    // NOTE: no dropped_iterations{scenario:gateway} — zero-drop scenario emits no samples
   },
+});
+
+describe('parseSummary per-target', () => {
+  it('splits metrics by scenario tag and sums the total', () => {
+    const r = parseSummary(summary, [
+      { slug: 'gateway', targetRps: 200 },
+      { slug: 'checkout', targetRps: 50 },
+    ], 10);
+    const checkout = r.perTarget.find((t) => t.slug === 'checkout')!;
+    expect(checkout).toMatchObject({ targetRps: 50, achievedRps: 50, requests: 500, dropped: 120, latencyP95Ms: 40 });
+    const gateway = r.perTarget.find((t) => t.slug === 'gateway')!;
+    expect(gateway.dropped).toBe(0); // missing sub-metric defaults to 0
+    expect(r.total).toMatchObject({ requests: 2500, achievedRps: 250, targetRps: 250, dropped: 120 });
+  });
 });
 
 class FakeRunner implements Runner {
@@ -23,57 +44,20 @@ class FakeRunner implements Runner {
   }
 }
 
-describe('parseSummary', () => {
-  it('extracts the headline metrics', () => {
-    expect(parseSummary(fixture)).toEqual({
-      requests: 30000,
-      rps: 498.3,
-      latencyAvgMs: 12.4,
-      latencyP95Ms: 41.0,
-      latencyMaxMs: 120,
-      errorRate: 0.018,
-    });
-  });
-
-  it('defaults missing metrics to 0', () => {
-    const r = parseSummary(JSON.stringify({ metrics: { http_reqs: { count: 5 } } }));
-    expect(r.requests).toBe(5);
-    expect(r.rps).toBe(0);
-    expect(r.latencyAvgMs).toBe(0);
-    expect(r.latencyP95Ms).toBe(0);
-    expect(r.latencyMaxMs).toBe(0);
-    expect(r.errorRate).toBe(0);
-  });
-
-  it('parses peak latency (http_req_duration.max) into latencyMaxMs', () => {
-    const json = JSON.stringify({ metrics: {
-      http_reqs: { count: 100, rate: 10 },
-      http_req_duration: { avg: 8, 'p(95)': 18, max: 95.5 },
-      http_req_failed: { value: 0 },
-    }});
-    expect(parseSummary(json).latencyMaxMs).toBe(95.5);
-  });
-
-  it('handles an empty object without throwing', () => {
-    expect(parseSummary('{}')).toEqual({
-      requests: 0, rps: 0, latencyAvgMs: 0, latencyP95Ms: 0, latencyMaxMs: 0, errorRate: 0,
-    });
-  });
-});
-
 describe('K6Runner.run', () => {
   it('builds the docker run argv and parses summary.json', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sds-k6-'));
-    writeFileSync(join(dir, 'summary.json'), fixture);
+    writeFileSync(join(dir, 'summary.json'), summary);
     const runner = new FakeRunner();
-    const result = await new K6Runner(runner).run('exp1', dir);
+    const targets = [{ slug: 'gateway', targetRps: 200 }, { slug: 'checkout', targetRps: 50 }];
+    const result = await new K6Runner(runner).run('exp1', dir, targets, 10);
     expect(runner.calls[0]).toEqual([
       'docker', 'run', '--rm', '--network', 'sds-exp1_sds-exp1-net',
       '-v', `${dir}:/sds`,
-      'grafana/k6', 'run', '--summary-export=/sds/summary.json', '/sds/load.js',
+      'grafana/k6:0.49.0', 'run', '--summary-export=/sds/summary.json', '/sds/load.js',
     ]);
-    expect(result.requests).toBe(30000);
-    expect(result.rps).toBe(498.3);
+    expect(result.perTarget).toHaveLength(2);
+    expect(result.total.requests).toBe(2500);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -81,7 +65,7 @@ describe('K6Runner.run', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sds-k6-'));
     const runner = new FakeRunner();
     runner.result = { code: 99, stdout: '', stderr: 'script error' };
-    await expect(new K6Runner(runner).run('exp1', dir)).rejects.toThrow(/script error/);
+    await expect(new K6Runner(runner).run('exp1', dir, [], 10)).rejects.toThrow(/script error/);
     rmSync(dir, { recursive: true, force: true });
   });
 });

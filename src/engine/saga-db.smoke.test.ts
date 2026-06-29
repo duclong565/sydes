@@ -12,7 +12,7 @@ import { K6Runner } from './k6-runner.js';
 describe.skipIf(!process.env.RUN_DOCKER)('saga-db smoke (real docker)', () => {
   it('service -> kafka -> worker -> postgres rows land', async () => {
     const graph = JSON.parse(readFileSync('examples/saga-db.json', 'utf8')) as Graph;
-    const result = compile(graph, { rate: 20, durationSec: 3 });
+    const result = compile(graph, { durationSec: 3, targets: [{ nodeId: 'o', rate: 20 }] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -25,7 +25,7 @@ describe.skipIf(!process.env.RUN_DOCKER)('saga-db smoke (real docker)', () => {
     try {
       await c.preflight(result.output);
       await c.up(id); // blocks until kafka healthy (worker group registered) + postgres healthy
-      await new K6Runner(runner).run(id, runDir); // fire load at the service -> publishes -> worker consumes -> writes
+      await new K6Runner(runner).run(id, runDir, result.output.loadTargets!, 3); // fire load at the service -> publishes -> worker consumes -> writes
 
       // Poll Postgres until the worker's writes land (or time out).
       let count = 0;
