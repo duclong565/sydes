@@ -40,7 +40,7 @@ Docker runtime (isolated bridge network per experiment)
 | Engine | TypeScript (ESM, Node) — compiler + controller + k6 runner + metrics |
 | Docker integration | dockerode + `docker compose` CLI (spawned via a `Runner` seam) |
 | Custom service images | Go (scratch, `CGO_ENABLED=0`) — `sds/microservice`, `sds/worker` |
-| Load generator | k6 (one-shot `grafana/k6:0.49.0`); load targets are per-node `config.loadRate` (service/lb only); one tagged scenario per target; results are per-target (target vs achieved RPS + dropped iterations) |
+| Load generator | k6 (one-shot `grafana/k6:0.49.0`); load targets are per-node `config.loadRate` (service/lb only); one tagged scenario per target; results are per-target (target vs achieved RPS + dropped iterations, saturation-highlighted) + a total row |
 | Metrics | dockerode `container.stats` (CPU%/mem) + per-db write count, **streamed to the canvas over a `@fastify/websocket` channel** (`GET /api/metrics/:runId`). **No Prometheus/cAdvisor.** |
 | Tests | vitest (root engine/agent + `web/`), gated real-Docker smokes |
 
