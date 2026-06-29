@@ -57,6 +57,20 @@ export function Inspector() {
             onChange={(e) => updateNode(node.id, { config: { ...cfg, errorRate: Number(e.target.value) } })}
             className="mb-3 w-full rounded border border-slate-300 px-2 py-1 text-sm"
           />
+          <label htmlFor="insp-mspkb" className="block text-xs text-slate-500">payload sensitivity (ms/KB)</label>
+          {(() => {
+            const ms = cfg.msPerKb ?? 0;
+            const bad = typeof ms !== 'number' || ms < 0;
+            return (<>
+              <input
+                id="insp-mspkb" aria-label="msPerKb" type="number" step="0.1" min={0}
+                value={cfg.msPerKb ?? 0}
+                onChange={(e) => updateNode(node.id, { config: { ...cfg, msPerKb: Number(e.target.value) } })}
+                className={`mb-1 w-full rounded border px-2 py-1 text-sm ${bad ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
+              />
+              {bad && <div className="mb-2 text-xs font-semibold text-red-600">Must be ≥ 0</div>}
+            </>);
+          })()}
         </>
       )}
 
@@ -135,6 +149,22 @@ export function Inspector() {
                 />
                 {invalid && <div className="mt-1 text-xs font-semibold text-red-600">Rate must be a whole number ≥ 1</div>}
                 <div className="mt-1 text-[10px] text-slate-400">k6 hits {slugify(node.data.label)}:{port}{node.data.type === 'lb' ? ' → nginx round-robins' : ''} at {rate} rps</div>
+                <label htmlFor="insp-bodykb" className="mt-2 block text-xs text-slate-500">body size (KB)</label>
+                {(() => {
+                  const kb = cfg.loadBodyKb;
+                  const bad = kb !== undefined && (!Number.isInteger(kb) || kb < 1 || kb > 1024);
+                  return (<>
+                    <input
+                      id="insp-bodykb" aria-label="body size" type="number" min={1}
+                      value={kb ?? ''} placeholder="(unset → {ping:true})"
+                      onChange={(e) => updateNode(node.id, { config: { ...cfg, loadBodyKb: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      className={`w-full rounded border px-2 py-1 text-sm ${bad ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
+                    />
+                    {bad
+                      ? <div className="mt-1 text-xs font-semibold text-red-600">Max body size is 1024 KB</div>
+                      : <div className="mt-1 text-[10px] text-slate-400">only bites a service with ms/KB &gt; 0</div>}
+                  </>);
+                })()}
               </>
             ) : (
               <div className="mt-1 text-[10px] text-slate-400">off — no traffic generated here</div>
