@@ -78,6 +78,36 @@ describe('POST /api/load/:runId', () => {
     }
   });
 
+  it('400s when targets is missing / not an array (malformed body)', async () => {
+    const { app, runs, runRoot } = server();
+    try {
+      await app.inject({ method: 'POST', url: '/api/run', payload: { graph: sagaGraph } });
+      await runs.get('saga')!.task; // -> running
+      const res = await app.inject({
+        method: 'POST', url: '/api/load/saga',
+        payload: { durationSec: 10 }, // targets omitted
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      rmSync(runRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('400s when durationSec is not a positive number', async () => {
+    const { app, runs, runRoot } = server();
+    try {
+      await app.inject({ method: 'POST', url: '/api/run', payload: { graph: sagaGraph } });
+      await runs.get('saga')!.task; // -> running
+      const res = await app.inject({
+        method: 'POST', url: '/api/load/saga',
+        payload: { durationSec: 0, targets: [{ nodeId: 'o', rate: 20 }] },
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      rmSync(runRoot, { recursive: true, force: true });
+    }
+  });
+
   it('404s for an unknown run', async () => {
     const { app, runRoot } = server();
     try {

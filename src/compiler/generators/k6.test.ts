@@ -20,4 +20,17 @@ describe('generateK6 multi-scenario', () => {
     expect(s).toContain("'dropped_iterations{scenario:gateway}': ['count>=0']");
     expect(s).toContain("'http_req_duration{scenario:checkout}': ['max>=0']");
   });
+
+  it('caps VUs at the ceiling so a huge rate saturates instead of OOM-killing k6', () => {
+    const s = generateK6([{ slug: 'svc', port: 8080, rate: 200000 }], 20);
+    // both preAllocatedVUs and maxVUs are clamped to MAX_VUS (2000) — not 200000 / 2000000
+    expect(s).toContain('preAllocatedVUs: 2000, maxVUs: 2000');
+    expect(s).not.toContain('200000, maxVUs');
+    expect(s).not.toContain('maxVUs: 2000000');
+  });
+
+  it('keeps rate*10 headroom for small rates below the cap', () => {
+    const s = generateK6([{ slug: 'svc', port: 8080, rate: 100 }], 10);
+    expect(s).toContain('preAllocatedVUs: 100, maxVUs: 1000');
+  });
 });

@@ -47,19 +47,22 @@ describe('Drawer', () => {
   });
 
   it('renders a per-target results table with a total and highlights saturated rows', () => {
+    // checkout is saturated: achieved 38/s + dropped 12/s = target 50/s (the rows reconcile)
     const lastLoad = {
       perTarget: [
-        { slug: 'gateway', targetRps: 200, achievedRps: 200, requests: 2000, dropped: 0, errorRate: 0.002, latencyAvgMs: 9, latencyP95Ms: 18, latencyMaxMs: 61 },
-        { slug: 'checkout', targetRps: 50, achievedRps: 38, requests: 380, dropped: 120, errorRate: 0.014, latencyAvgMs: 22, latencyP95Ms: 40, latencyMaxMs: 96 },
+        { slug: 'gateway', targetRps: 200, achievedRps: 200, requests: 2000, dropped: 0, droppedRps: 0, errorRate: 0.002, latencyAvgMs: 9, latencyP95Ms: 18, latencyMaxMs: 61 },
+        { slug: 'checkout', targetRps: 50, achievedRps: 38, requests: 380, dropped: 120, droppedRps: 12, errorRate: 0.014, latencyAvgMs: 22, latencyP95Ms: 40, latencyMaxMs: 96 },
       ],
-      total: { requests: 2380, targetRps: 250, achievedRps: 238, dropped: 120, errorRate: 0.005 },
+      total: { requests: 2380, targetRps: 250, achievedRps: 238, dropped: 120, droppedRps: 12, errorRate: 0.005 },
     };
     render(<Drawer open tab="metrics" onToggle={() => {}} onSelectTab={() => {}} compose="" status={null} logs="" metrics={[]} lastLoad={lastLoad as any} />);
     expect(screen.getByText('checkout')).toBeInTheDocument();
-    expect(screen.getAllByText(/120/).length).toBeGreaterThan(0); // dropped (appears in row + total)
     expect(screen.getByText('total')).toBeInTheDocument();
     const row = screen.getByText('checkout').closest('tr')!;
     expect(row.className).toMatch(/orange|amber|bg-/);          // saturated highlight
+    // dropped is shown as a per-second rate (12 = 120/10s), not the raw count (120)
+    expect(screen.queryByText('120')).toBeNull();
+    expect(screen.getByText('12')).toBeInTheDocument();         // total dropped/s cell
   });
   it('renders Writes and Δ columns for a db row, — for a non-db row', () => {
     const m = [

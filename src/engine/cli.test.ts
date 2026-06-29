@@ -83,8 +83,8 @@ class StubK6 {
   async run(_experimentId: string, _runDir: string, _targets: { slug: string; targetRps: number }[], _durationSec: number): Promise<K6Result> {
     this.ran = true;
     return {
-      perTarget: [{ slug: 'edge-a', targetRps: 20, achievedRps: 10, requests: 100, dropped: 0, errorRate: 0, latencyAvgMs: 5, latencyP95Ms: 9, latencyMaxMs: 20 }],
-      total: { requests: 100, targetRps: 20, achievedRps: 10, dropped: 0, errorRate: 0 },
+      perTarget: [{ slug: 'edge-a', targetRps: 20, achievedRps: 10, requests: 100, dropped: 0, droppedRps: 0, errorRate: 0, latencyAvgMs: 5, latencyP95Ms: 9, latencyMaxMs: 20 }],
+      total: { requests: 100, targetRps: 20, achievedRps: 10, dropped: 0, droppedRps: 0, errorRate: 0 },
     };
   }
 }

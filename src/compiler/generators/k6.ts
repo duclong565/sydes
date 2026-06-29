@@ -7,13 +7,24 @@ const SUB_METRICS: Record<string, string> = {
   dropped_iterations: 'count>=0',
 };
 
+// VU ceiling per scenario. Without it, `preAllocatedVUs = rate` / `maxVUs = rate*10`
+// is unbounded: a rate like 200000 makes k6 preallocate hundreds of thousands of VUs
+// at startup and the container is OOM-killed (exit 137). Above the cap a target simply
+// saturates (dropped iterations) — the correct sandbox signal — instead of crashing.
+// 2000 VUs sustains very high throughput for a fast service (Little's law: 2000 / 10ms
+// = 200k rps) and stays well within the k6 container's memory.
+const MAX_VUS = 2000;
+
 export function generateK6(targets: K6Target[], durationSec: number): string {
   const scenarios = targets
-    .map(
-      (t, i) =>
+    .map((t, i) => {
+      const maxVUs = Math.min(t.rate * 10, MAX_VUS);
+      const preAllocatedVUs = Math.min(t.rate, maxVUs);
+      return (
         `    '${t.slug}': { executor: 'constant-arrival-rate', rate: ${t.rate}, timeUnit: '1s', ` +
-        `duration: '${durationSec}s', preAllocatedVUs: ${t.rate}, maxVUs: ${t.rate * 10}, exec: 'fn${i}' },`,
-    )
+        `duration: '${durationSec}s', preAllocatedVUs: ${preAllocatedVUs}, maxVUs: ${maxVUs}, exec: 'fn${i}' },`
+      );
+    })
     .join('\n');
 
   const thresholds = targets

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Runner } from './runner.js';
+import type { LoadTargetResolved } from '../compiler/types.js';
 
 const K6_IMAGE = 'grafana/k6:0.49.0'; // pinned (Task 0); --summary-export + tagged sub-metrics depend on it
 
@@ -9,7 +10,8 @@ export interface TargetResult {
   targetRps: number;
   achievedRps: number;
   requests: number;
-  dropped: number;
+  dropped: number;       // total dropped iterations over the run
+  droppedRps: number;    // dropped / durationSec — so achievedRps + droppedRps ≈ targetRps
   errorRate: number;
   latencyAvgMs: number;
   latencyP95Ms: number;
@@ -18,14 +20,14 @@ export interface TargetResult {
 
 export interface K6Result {
   perTarget: TargetResult[];
-  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; errorRate: number };
+  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; droppedRps: number; errorRate: number };
 }
 
 function num(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-export function parseSummary(json: string, targets: { slug: string; targetRps: number }[], durationSec: number): K6Result {
+export function parseSummary(json: string, targets: LoadTargetResolved[], durationSec: number): K6Result {
   const data = JSON.parse(json) as { metrics?: Record<string, Record<string, unknown>> };
   const m = data.metrics ?? {};
   const sub = (metric: string, slug: string) => m[`${metric}{scenario:${slug}}`] ?? {};
@@ -43,6 +45,7 @@ export function parseSummary(json: string, targets: { slug: string; targetRps: n
       achievedRps: requests / durationSec,
       requests,
       dropped: num(dropped.count),
+      droppedRps: num(dropped.count) / durationSec,
       errorRate: num(failed.value),
       latencyAvgMs: num(dur.avg),
       latencyP95Ms: num(dur['p(95)']),
@@ -58,6 +61,7 @@ export function parseSummary(json: string, targets: { slug: string; targetRps: n
       targetRps: targets.reduce((s, t) => s + t.targetRps, 0),
       achievedRps: totalRequests / durationSec,
       dropped: num(top('dropped_iterations').count),
+      droppedRps: num(top('dropped_iterations').count) / durationSec,
       errorRate: num(top('http_req_failed').value),
     },
   };
@@ -70,7 +74,7 @@ export class K6Runner {
   async run(
     experimentId: string,
     runDir: string,
-    targets: { slug: string; targetRps: number }[],
+    targets: LoadTargetResolved[],
     durationSec: number,
   ): Promise<K6Result> {
     const net = `sds-${experimentId}_sds-${experimentId}-net`;
@@ -80,7 +84,8 @@ export class K6Runner {
       K6_IMAGE, 'run', '--summary-export=/sds/summary.json', '/sds/load.js',
     ]);
     if (r.code !== 0) {
-      throw new Error(`k6 run failed (exit ${r.code}): ${r.stderr.trim()}`);
+      const hint = r.code === 137 ? ' — exit 137 = killed (likely OOM; lower the load rate or target count)' : '';
+      throw new Error(`k6 run failed (exit ${r.code})${hint}: ${r.stderr.trim()}`);
     }
     return parseSummary(readFileSync(join(runDir, 'summary.json'), 'utf8'), targets, durationSec);
   }
