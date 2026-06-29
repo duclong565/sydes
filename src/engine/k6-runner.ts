@@ -81,7 +81,8 @@ export class K6Runner {
       K6_IMAGE, 'run', '--summary-export=/sds/summary.json', '/sds/load.js',
     ]);
     if (r.code !== 0) {
-      throw new Error(`k6 run failed (exit ${r.code}): ${r.stderr.trim()}`);
+      const hint = r.code === 137 ? ' — exit 137 = killed (likely OOM; lower the load rate or target count)' : '';
+      throw new Error(`k6 run failed (exit ${r.code})${hint}: ${r.stderr.trim()}`);
     }
     return parseSummary(readFileSync(join(runDir, 'summary.json'), 'utf8'), targets, durationSec);
   }
