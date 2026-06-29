@@ -59,7 +59,7 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                   <div className="bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">Load results</div>
                   <table className="w-full text-right text-xs">
                     <thead className="text-[10px] uppercase text-slate-400">
-                      <tr><th className="px-2 py-1 text-left">target</th><th>target/s</th><th>achieved/s</th><th>dropped</th><th>err %</th><th>avg</th><th>p95</th><th>peak</th></tr>
+                      <tr><th className="px-2 py-1 text-left">target</th><th>target/s</th><th>achieved/s</th><th>dropped/s</th><th>err %</th><th>avg</th><th>p95</th><th>peak</th></tr>
                     </thead>
                     <tbody className="font-mono">
                       {lastLoad.perTarget.map((t) => {
@@ -69,7 +69,7 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                             <td className="px-2 py-1 text-left">{t.slug}</td>
                             <td>{t.targetRps}</td>
                             <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.achievedRps.toFixed(0)}</td>
-                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.dropped}{saturated ? ' ⚠' : ''}</td>
+                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.droppedRps.toFixed(0)}{saturated ? ' ⚠' : ''}</td>
                             <td>{(t.errorRate * 100).toFixed(1)}</td>
                             <td>{t.latencyAvgMs.toFixed(1)}</td>
                             <td>{t.latencyP95Ms.toFixed(0)}</td>
@@ -81,7 +81,7 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                         <td className="px-2 py-1 text-left">total</td>
                         <td>{lastLoad.total.targetRps}</td>
                         <td>{lastLoad.total.achievedRps.toFixed(0)}</td>
-                        <td>{lastLoad.total.dropped}</td>
+                        <td>{lastLoad.total.droppedRps.toFixed(0)}</td>
                         <td>{(lastLoad.total.errorRate * 100).toFixed(1)}</td>
                         <td>—</td><td>—</td><td>—</td>
                       </tr>

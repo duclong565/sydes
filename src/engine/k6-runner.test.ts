@@ -28,10 +28,11 @@ describe('parseSummary per-target', () => {
       { slug: 'checkout', targetRps: 50 },
     ], 10);
     const checkout = r.perTarget.find((t) => t.slug === 'checkout')!;
-    expect(checkout).toMatchObject({ targetRps: 50, achievedRps: 50, requests: 500, dropped: 120, latencyP95Ms: 40 });
+    expect(checkout).toMatchObject({ targetRps: 50, achievedRps: 50, requests: 500, dropped: 120, droppedRps: 12, latencyP95Ms: 40 });
     const gateway = r.perTarget.find((t) => t.slug === 'gateway')!;
     expect(gateway.dropped).toBe(0); // missing sub-metric defaults to 0
-    expect(r.total).toMatchObject({ requests: 2500, achievedRps: 250, targetRps: 250, dropped: 120 });
+    expect(gateway.droppedRps).toBe(0);
+    expect(r.total).toMatchObject({ requests: 2500, achievedRps: 250, targetRps: 250, dropped: 120, droppedRps: 12 });
   });
 });
 

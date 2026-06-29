@@ -10,7 +10,8 @@ export interface TargetResult {
   targetRps: number;
   achievedRps: number;
   requests: number;
-  dropped: number;
+  dropped: number;       // total dropped iterations over the run
+  droppedRps: number;    // dropped / durationSec — so achievedRps + droppedRps ≈ targetRps
   errorRate: number;
   latencyAvgMs: number;
   latencyP95Ms: number;
@@ -19,7 +20,7 @@ export interface TargetResult {
 
 export interface K6Result {
   perTarget: TargetResult[];
-  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; errorRate: number };
+  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; droppedRps: number; errorRate: number };
 }
 
 function num(v: unknown): number {
@@ -44,6 +45,7 @@ export function parseSummary(json: string, targets: LoadTargetResolved[], durati
       achievedRps: requests / durationSec,
       requests,
       dropped: num(dropped.count),
+      droppedRps: num(dropped.count) / durationSec,
       errorRate: num(failed.value),
       latencyAvgMs: num(dur.avg),
       latencyP95Ms: num(dur['p(95)']),
@@ -59,6 +61,7 @@ export function parseSummary(json: string, targets: LoadTargetResolved[], durati
       targetRps: targets.reduce((s, t) => s + t.targetRps, 0),
       achievedRps: totalRequests / durationSec,
       dropped: num(top('dropped_iterations').count),
+      droppedRps: num(top('dropped_iterations').count) / durationSec,
       errorRate: num(top('http_req_failed').value),
     },
   };

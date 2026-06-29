@@ -29,6 +29,7 @@ export interface TargetResult {
   achievedRps: number;
   requests: number;
   dropped: number;
+  droppedRps: number;
   errorRate: number;
   latencyAvgMs: number;
   latencyP95Ms: number;
@@ -36,7 +37,7 @@ export interface TargetResult {
 }
 export interface K6Result {
   perTarget: TargetResult[];
-  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; errorRate: number };
+  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; droppedRps: number; errorRate: number };
 }
 export type LoadResult = K6Result | { error?: string; ok?: false; errors?: unknown[] };
 
