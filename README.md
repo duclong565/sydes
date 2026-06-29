@@ -1,4 +1,4 @@
-# SysDes — System Design Sandbox
+# SyDes — System Design Sandbox
 
 Draw a service architecture. Press Run. Watch real Docker containers spin up under load.
 
