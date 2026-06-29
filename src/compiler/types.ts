@@ -8,6 +8,7 @@ export interface GraphNode {
     latencyMs?: number;
     errorRate?: number;
     partitions?: number;
+    loadRate?: number;   // present + integer ≥1 = this node is a load source at N rps
   };
 }
 
@@ -22,10 +23,10 @@ export interface Graph {
   edges: GraphEdge[];
 }
 
-export interface LoadConfig {
-  rate: number;        // requests per second
-  durationSec: number;
-}
+export interface LoadTarget { nodeId: string; rate: number }
+export interface LoadConfig { durationSec: number; targets: LoadTarget[] }
+
+export interface LoadTargetResolved { slug: string; targetRps: number }
 
 export interface ComposeService {
   name: string;        // container name + DNS hostname
@@ -49,7 +50,7 @@ export interface CompilerError {
 }
 
 export type CompilerResult =
-  | { ok: true; output: { compose: string; nginx?: string; k6?: string } }
+  | { ok: true; output: { compose: string; nginx?: string; k6?: string; loadTargets?: LoadTargetResolved[] } }
   | { ok: false; errors: CompilerError[] };
 
 export interface GraphIndex {

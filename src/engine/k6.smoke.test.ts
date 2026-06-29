@@ -12,7 +12,7 @@ import { K6Runner } from './k6-runner.js';
 describe.skipIf(!process.env.RUN_DOCKER)('k6 smoke (real docker)', () => {
   it('runs a small load against a service-pair and reports metrics', async () => {
     const graph = JSON.parse(readFileSync('examples/service-pair.json', 'utf8')) as Graph;
-    const result = compile(graph, { rate: 20, durationSec: 3 });
+    const result = compile(graph, { durationSec: 3, targets: [{ nodeId: 'a', rate: 20 }] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -22,9 +22,9 @@ describe.skipIf(!process.env.RUN_DOCKER)('k6 smoke (real docker)', () => {
     try {
       await c.preflight(result.output);
       await c.up(graph.experimentId);
-      const res = await new K6Runner(new RealRunner()).run(graph.experimentId, runDir);
-      expect(res.requests).toBeGreaterThan(0);
-      expect(res.rps).toBeGreaterThan(0);
+      const res = await new K6Runner(new RealRunner()).run(graph.experimentId, runDir, result.output.loadTargets!, 3);
+      expect(res.total.requests).toBeGreaterThan(0);
+      expect(res.total.achievedRps).toBeGreaterThan(0);
     } finally {
       await c.down(graph.experimentId);
       rmSync(runRoot, { recursive: true, force: true });

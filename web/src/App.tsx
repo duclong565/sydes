@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type ExampleEntry, type RunStatus, type K6Result } from './api.js';
 import { useGraphStore, type Graph } from './store.js';
 import { Palette } from './Palette.js';
@@ -26,11 +26,23 @@ export function App() {
   const setExperimentId = useGraphStore((s) => s.setExperimentId);
   const loadExample = useGraphStore((s) => s.loadExample);
 
+  const nodes = useGraphStore((s) => s.nodes);
+  const sources = useMemo(
+    () =>
+      nodes
+        .filter((n) => {
+          const t = n.data.type, r = n.data.config?.loadRate;
+          return (t === 'service' || t === 'lb') && Number.isInteger(r) && (r as number) >= 1;
+        })
+        .map((n) => ({ nodeId: n.id, rate: n.data.config!.loadRate as number })),
+    [nodes],
+  );
+  const totalRps = sources.reduce((acc, t) => acc + t.rate, 0);
+
   const metricsByService = useMetricsStore((s) => s.byService);
   const setSnapshot = useMetricsStore((s) => s.setSnapshot);
   const clearMetrics = useMetricsStore((s) => s.clear);
   const [wsLive, setWsLive] = useState(false);
-  const [rate, setRate] = useState(20);
   const [durationSec, setDurationSec] = useState(10);
   const [lastLoad, setLastLoad] = useState<K6Result | null>(null);
   const [loading, setLoading] = useState(false);
@@ -109,12 +121,12 @@ export function App() {
       setRunId(''); // halts polling
     } catch (e) { setError(String(e)); }
   }
-  async function onGenerateLoad() {
-    if (!runId) return;
+  async function onRunLoad() {
+    if (!runId || sources.length === 0) return;
     setLoading(true);
     try {
-      const r = await api.load(runId, rate, durationSec);
-      if ('requests' in r) { setLastLoad(r); setError(null); setDrawerTab('metrics'); setDrawerOpen(true); }
+      const r = await api.load(runId, durationSec, sources);
+      if ('perTarget' in r) { setLastLoad(r); setError(null); setDrawerTab('metrics'); setDrawerOpen(true); }
       else setError(`Load failed: ${r.error ?? errorText(r.errors ?? [])}`);
     } catch (e) { setError(String(e)); }
     finally { setLoading(false); }
@@ -145,21 +157,16 @@ export function App() {
         <div className="flex-1" />
         {state === 'running' && (
           <div className="flex items-center gap-2 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1">
-            <div className="flex gap-1">
-              {([['Light', 5, 10], ['Normal', 20, 10], ['Spike', 100, 5], ['Stress', 200, 20]] as const).map(([label, r, d]) => (
-                <button key={label} onClick={() => { setRate(r); setDurationSec(d); }}
-                  className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] hover:bg-indigo-50">{label}</button>
-              ))}
-            </div>
-            <label className="text-[11px] text-slate-500">rate
-              <input aria-label="rate" type="number" min={1} max={1000} value={rate} onChange={(e) => setRate(Number(e.target.value))}
-                className="ml-1 w-14 rounded border border-slate-300 px-1 py-0.5 text-sm text-right" /></label>
             <label className="text-[11px] text-slate-500">dur
-              <input aria-label="duration" type="number" min={1} max={120} value={durationSec} onChange={(e) => setDurationSec(Number(e.target.value))}
+              <input aria-label="duration" type="number" min={1} max={120} value={durationSec}
+                onChange={(e) => setDurationSec(Number(e.target.value))}
                 className="ml-1 w-12 rounded border border-slate-300 px-1 py-0.5 text-sm text-right" /></label>
-            <button onClick={onGenerateLoad} disabled={loading}
-              className="rounded bg-indigo-600 px-2.5 py-1 text-sm font-medium text-white disabled:opacity-60">
-              {loading ? 'Generating load…' : 'Generate load'}
+            <span className={`text-[11px] font-semibold ${sources.length ? 'text-orange-600' : 'text-slate-400'}`}>
+              {sources.length ? `⚡ ${sources.length} sources · ${totalRps} rps` : 'select a service → toggle ⚡ Load source'}
+            </span>
+            <button onClick={onRunLoad} disabled={loading || sources.length === 0}
+              className="rounded bg-orange-600 px-2.5 py-1 text-sm font-medium text-white disabled:opacity-50">
+              {loading ? 'Running load…' : 'Run load'}
             </button>
           </div>
         )}

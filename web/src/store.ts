@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react';
 
 export type NodeType = 'service' | 'kafka' | 'worker' | 'db' | 'lb';
-export interface NodeConfig { latencyMs?: number; errorRate?: number; partitions?: number }
+export interface NodeConfig { latencyMs?: number; errorRate?: number; partitions?: number; loadRate?: number }
 
 // Index signature satisfies @xyflow/react's `Node<T extends Record<string, unknown>>` constraint.
 export interface SdsNodeData extends Record<string, unknown> {

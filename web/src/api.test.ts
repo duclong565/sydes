@@ -22,12 +22,14 @@ describe('api', () => {
     await expect(api.status('saga')).rejects.toThrow();
   });
 
-  it('load() posts rate/duration and returns a K6Result', async () => {
-    const result = { requests: 200, rps: 20, latencyAvgMs: 8, latencyP95Ms: 18, latencyMaxMs: 95, errorRate: 0 };
+  it('load() posts durationSec/targets and returns a K6Result', async () => {
+    const result = { perTarget: [{ slug: 'svc', targetRps: 50, achievedRps: 50, requests: 500, dropped: 0, errorRate: 0, latencyAvgMs: 8, latencyP95Ms: 18, latencyMaxMs: 95 }], total: { requests: 500, targetRps: 50, achievedRps: 50, dropped: 0, errorRate: 0 } };
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(result)));
     vi.stubGlobal('fetch', fetchMock);
-    const r = await api.load('saga', 20, 10);
-    expect(r).toMatchObject({ requests: 200, latencyMaxMs: 95 });
+    const r = await api.load('saga', 10, [{ nodeId: 'svc-1', rate: 50 }]);
+    expect(r).toMatchObject({ perTarget: [{ slug: 'svc', requests: 500 }] });
     expect(fetchMock).toHaveBeenCalledWith('/api/load/saga', expect.objectContaining({ method: 'POST' }));
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).toEqual({ durationSec: 10, targets: [{ nodeId: 'svc-1', rate: 50 }] });
   });
 });

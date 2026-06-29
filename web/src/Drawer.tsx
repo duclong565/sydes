@@ -55,16 +55,38 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
           {tab === 'metrics' && (
             <div>
               {lastLoad && (
-                <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
-                  <div className="text-[10px] uppercase tracking-wide text-indigo-400">Last load</div>
-                  <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-1 font-mono text-indigo-900">
-                    <div>requests {lastLoad.requests}</div>
-                    <div>tput {lastLoad.rps.toFixed(0)}/s</div>
-                    <div>err {(lastLoad.errorRate * 100).toFixed(1)}%</div>
-                    <div>avg {lastLoad.latencyAvgMs.toFixed(1)}ms</div>
-                    <div>p95 {lastLoad.latencyP95Ms.toFixed(0)}ms</div>
-                    <div>peak {lastLoad.latencyMaxMs.toFixed(0)}ms</div>
-                  </div>
+                <div className="mb-3 overflow-hidden rounded-lg border border-slate-200">
+                  <div className="bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">Load results</div>
+                  <table className="w-full text-right text-xs">
+                    <thead className="text-[10px] uppercase text-slate-400">
+                      <tr><th className="px-2 py-1 text-left">target</th><th>target/s</th><th>achieved/s</th><th>dropped</th><th>err %</th><th>avg</th><th>p95</th><th>peak</th></tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {lastLoad.perTarget.map((t) => {
+                        const saturated = t.achievedRps < t.targetRps;
+                        return (
+                          <tr key={t.slug} className={`border-t border-slate-100 ${saturated ? 'bg-orange-50' : ''}`}>
+                            <td className="px-2 py-1 text-left">{t.slug}</td>
+                            <td>{t.targetRps}</td>
+                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.achievedRps.toFixed(0)}</td>
+                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.dropped}{saturated ? ' ⚠' : ''}</td>
+                            <td>{(t.errorRate * 100).toFixed(1)}</td>
+                            <td>{t.latencyAvgMs.toFixed(1)}</td>
+                            <td>{t.latencyP95Ms.toFixed(0)}</td>
+                            <td>{t.latencyMaxMs.toFixed(0)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+                        <td className="px-2 py-1 text-left">total</td>
+                        <td>{lastLoad.total.targetRps}</td>
+                        <td>{lastLoad.total.achievedRps.toFixed(0)}</td>
+                        <td>{lastLoad.total.dropped}</td>
+                        <td>{(lastLoad.total.errorRate * 100).toFixed(1)}</td>
+                        <td>—</td><td>—</td><td>—</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               )}
               {metrics.length === 0 ? (

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App.js';
+import { api } from './api.js';
 import { useGraphStore } from './store.js';
 import { useMetricsStore } from './metrics-store.js';
 
@@ -146,9 +147,40 @@ describe('App brick 3', () => {
   });
 });
 
-describe('App brick 5 (generate load)', () => {
-  it('shows the load control only while running and posts /api/load', async () => {
-    const result = { requests: 200, rps: 20, latencyAvgMs: 8, latencyP95Ms: 18, latencyMaxMs: 95, errorRate: 0 };
+describe('App brick 5 (run load)', () => {
+  it('shows the load control only while running', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url.startsWith('/api/status/')) return new Response(JSON.stringify({ runId: 'saga', state: 'running', services: [] }));
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWS as unknown as typeof WebSocket);
+    render(<App />);
+    expect(screen.queryByRole('button', { name: 'Run load' })).toBeNull(); // hidden before running
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).toBeInTheDocument());
+  });
+
+  it('disables Run load when no node is a load source', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url.startsWith('/api/status/')) return new Response(JSON.stringify({ runId: 'saga', state: 'running', services: [] }));
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWS as unknown as typeof WebSocket);
+    // no nodes in store → sources = []
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Run load' })).toBeDisabled();
+  });
+
+  it('Run load posts targets built from marked nodes', async () => {
+    const result = { perTarget: [], total: { requests: 0, targetRps: 0, achievedRps: 0, dropped: 0, errorRate: 0 } };
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
       if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
@@ -158,12 +190,55 @@ describe('App brick 5 (generate load)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('WebSocket', MockWS as unknown as typeof WebSocket);
+    // seed a service node with loadRate = 50
+    useGraphStore.setState({
+      experimentId: 'untitled',
+      nodes: [{
+        id: 'svc-1',
+        type: 'serviceNode',
+        position: { x: 0, y: 0 },
+        data: { label: 'svc-1', type: 'service', config: { loadRate: 50 } },
+      }],
+      edges: [],
+      selectedId: null,
+    });
+    const spy = vi.spyOn(api, 'load').mockResolvedValue(result);
     render(<App />);
-    expect(screen.queryByRole('button', { name: 'Generate load' })).toBeNull(); // hidden before running
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate load' })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole('button', { name: 'Generate load' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/load/saga', expect.objectContaining({ method: 'POST' })));
-    await waitFor(() => expect(screen.getByText(/Last load/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).not.toBeDisabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Run load' }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Number),
+      [{ nodeId: 'svc-1', rate: 50 }],
+    ));
+    spy.mockRestore();
+  });
+
+  it('does not count a node with fractional loadRate as a source', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
+      if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
+      if (url.startsWith('/api/status/')) return new Response(JSON.stringify({ runId: 'saga', state: 'running', services: [] }));
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWS as unknown as typeof WebSocket);
+    useGraphStore.setState({
+      experimentId: 'untitled',
+      nodes: [{
+        id: 'svc-2',
+        type: 'serviceNode',
+        position: { x: 0, y: 0 },
+        data: { label: 'svc-2', type: 'service', config: { loadRate: 2.5 } },
+      }],
+      edges: [],
+      selectedId: null,
+    });
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Run load' })).toBeDisabled();
   });
 });

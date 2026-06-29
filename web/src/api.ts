@@ -23,13 +23,20 @@ export interface RunStatus {
   error?: string;
 }
 
-export interface K6Result {
+export interface TargetResult {
+  slug: string;
+  targetRps: number;
+  achievedRps: number;
   requests: number;
-  rps: number;
+  dropped: number;
+  errorRate: number;
   latencyAvgMs: number;
   latencyP95Ms: number;
   latencyMaxMs: number;
-  errorRate: number;
+}
+export interface K6Result {
+  perTarget: TargetResult[];
+  total: { requests: number; targetRps: number; achievedRps: number; dropped: number; errorRate: number };
 }
 export type LoadResult = K6Result | { error?: string; ok?: false; errors?: unknown[] };
 
@@ -65,6 +72,6 @@ export const api = {
   stop: (runId: string) =>
     jsonFetch<{ runId: string; state: string }>('/api/stop', { method: 'POST', body: JSON.stringify({ runId }) }),
   logs: (runId: string) => jsonFetch<{ runId: string; lines: string }>(`/api/logs/${runId}`),
-  load: (runId: string, rate: number, durationSec: number) =>
-    jsonFetch<LoadResult>(`/api/load/${runId}`, { method: 'POST', body: JSON.stringify({ rate, durationSec }) }),
+  load: (runId: string, durationSec: number, targets: { nodeId: string; rate: number }[]) =>
+    jsonFetch<LoadResult>(`/api/load/${runId}`, { method: 'POST', body: JSON.stringify({ durationSec, targets }) }),
 };

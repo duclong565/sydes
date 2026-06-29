@@ -1,4 +1,5 @@
 import { useGraphStore } from './store.js';
+import { slugify } from './slug.js';
 
 export function Inspector() {
   const node = useGraphStore((s) => s.nodes.find((n) => n.id === s.selectedId) ?? null);
@@ -97,6 +98,48 @@ export function Inspector() {
             {invalid && <div className="mb-2 text-xs font-semibold text-red-600">Partitions must be a whole number ≥ 1</div>}
             <div className={`mb-3 rounded border px-2 py-1.5 text-xs ${tone}`}>{text}</div>
           </>
+        );
+      })()}
+
+      {(node.data.type === 'service' || node.data.type === 'lb') && (() => {
+        const on = cfg.loadRate !== undefined;
+        const rate = cfg.loadRate ?? 0;
+        const invalid = on && (!Number.isInteger(rate) || rate < 1);
+        const port = node.data.type === 'lb' ? 80 : 8080;
+        const toggle = () =>
+          updateNode(node.id, { config: { ...cfg, loadRate: on ? undefined : 20 } });
+        return (
+          <div className="mb-3 mt-2 border-t border-dashed border-slate-200 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-700">⚡ Load source</span>
+              <button
+                aria-label="load source"
+                aria-pressed={on}
+                onClick={toggle}
+                className={`relative h-5 w-9 rounded-full transition ${on ? 'bg-orange-500' : 'bg-slate-300'}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${on ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+            {on ? (
+              <>
+                <label htmlFor="insp-rate" className="mt-2 block text-xs text-slate-500">rate (req/s)</label>
+                <input
+                  id="insp-rate"
+                  aria-label="rate"
+                  type="number"
+                  min={1}
+                  value={rate}
+                  onChange={(e) => updateNode(node.id, { config: { ...cfg, loadRate: Number(e.target.value) } })}
+                  className={`w-full rounded border px-2 py-1 text-sm ${invalid ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
+                />
+                {invalid && <div className="mt-1 text-xs font-semibold text-red-600">Rate must be a whole number ≥ 1</div>}
+                <div className="mt-1 text-[10px] text-slate-400">k6 hits {slugify(node.data.label)}:{port}{node.data.type === 'lb' ? ' → nginx round-robins' : ''} at {rate} rps</div>
+              </>
+            ) : (
+              <div className="mt-1 text-[10px] text-slate-400">off — no traffic generated here</div>
+            )}
+          </div>
         );
       })()}
 

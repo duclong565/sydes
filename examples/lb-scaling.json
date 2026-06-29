@@ -1,7 +1,7 @@
 {
   "experimentId": "lbdemo",
   "nodes": [
-    { "id": "lb", "type": "lb", "label": "Gateway" },
+    { "id": "lb", "type": "lb", "label": "Gateway", "config": { "loadRate": 100 } },
     { "id": "s1", "type": "service", "label": "Svc One" },
     { "id": "s2", "type": "service", "label": "Svc Two" }
   ],

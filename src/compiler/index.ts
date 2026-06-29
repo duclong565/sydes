@@ -58,6 +58,26 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
     }
   }
 
+  // Load-targeting pass — only when a load config is supplied (Preview/Run pass none).
+  if (loadConfig) {
+    if (loadConfig.targets.length === 0) {
+      errors.push({ nodeId: '', message: 'Load requires at least one target' });
+    }
+    for (const t of loadConfig.targets) {
+      const node = index.nodeMap.get(t.nodeId);
+      if (!node) {
+        errors.push({ nodeId: t.nodeId, message: `Load target "${t.nodeId}" is not in the graph` });
+        continue;
+      }
+      if (node.type !== 'service' && node.type !== 'lb') {
+        errors.push({ nodeId: t.nodeId, message: `Load target "${node.label}" must be a service or lb (got ${node.type})` });
+      }
+      if (!Number.isInteger(t.rate) || t.rate < 1) {
+        errors.push({ nodeId: t.nodeId, message: `Load rate for "${node.label}" must be a whole number ≥ 1` });
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // 3. Generation pass.
@@ -90,7 +110,7 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
   // 4. Compose.
   const networkName = `sds-${graph.experimentId}-net`;
   const compose = generateCompose(services, networkName);
-  const output: { compose: string; nginx?: string; k6?: string } = { compose };
+  const output: { compose: string; nginx?: string; k6?: string; loadTargets?: { slug: string; targetRps: number }[] } = { compose };
 
   // 5. Nginx (first LB node, if any).
   const lbNode = graph.nodes.find((n) => n.type === 'lb');
@@ -103,13 +123,14 @@ export function compile(graph: Graph, loadConfig?: LoadConfig): CompilerResult {
     output.nginx = generateNginx(upstreams);
   }
 
-  // 6. k6 (entry = first LB else first service).
+  // 6. k6 — one tagged scenario per explicit load target (validated above; no auto-pick).
   if (loadConfig) {
-    const entry = lbNode ?? graph.nodes.find((n) => n.type === 'service');
-    if (entry) {
-      const port = entry.type === 'lb' ? 80 : 8080;
-      output.k6 = generateK6(slugify(entry.label), port, loadConfig);
-    }
+    const resolved = loadConfig.targets.map((t) => {
+      const node = index.nodeMap.get(t.nodeId)!;
+      return { slug: slugify(node.label), port: node.type === 'lb' ? 80 : 8080, rate: t.rate };
+    });
+    output.k6 = generateK6(resolved, loadConfig.durationSec);
+    output.loadTargets = resolved.map((r) => ({ slug: r.slug, targetRps: r.rate }));
   }
 
   return { ok: true, output };

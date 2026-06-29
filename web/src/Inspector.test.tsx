@@ -8,7 +8,7 @@ beforeEach(() => {
   useGraphStore.setState({ experimentId: 'untitled', nodes: [], edges: [], selectedId: null });
 });
 
-function addAndSelect(type: 'service' | 'kafka') {
+function addAndSelect(type: 'service' | 'kafka' | 'lb') {
   useGraphStore.getState().addNode(type);
   const id = useGraphStore.getState().nodes[0]!.id;
   useGraphStore.getState().setSelected(id);
@@ -86,5 +86,35 @@ describe('Inspector', () => {
     render(<Inspector />);
     expect(screen.getByText(/whole number ≥ 1/i)).toBeInTheDocument();
     expect(screen.getByText(/fix the value/i)).toBeInTheDocument();
+  });
+
+  it('shows the load toggle on a service and adds loadRate when turned on', async () => {
+    const id = addAndSelect('service');
+    render(<Inspector />);
+    const toggle = screen.getByRole('button', { name: /load source/i });
+    expect(toggle).toBeInTheDocument();
+    expect(screen.queryByLabelText('rate')).toBeNull();
+    await userEvent.click(toggle);
+    expect(useGraphStore.getState().nodes.find((n) => n.id === id)!.data.config!.loadRate).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText('rate')).toBeInTheDocument();
+  });
+
+  it('shows the load toggle on an lb node too', () => {
+    addAndSelect('lb');
+    render(<Inspector />);
+    expect(screen.getByRole('button', { name: /load source/i })).toBeInTheDocument();
+  });
+
+  it('flags a non-integer rate inline', () => {
+    const id = addAndSelect('service');
+    useGraphStore.getState().updateNode(id, { config: { loadRate: 2.5 } });
+    render(<Inspector />);
+    expect(screen.getByText(/Rate must be a whole number ≥ 1/i)).toBeInTheDocument();
+  });
+
+  it('does not show a load toggle on a kafka node', () => {
+    addAndSelect('kafka');
+    render(<Inspector />);
+    expect(screen.queryByRole('button', { name: /load source/i })).toBeNull();
   });
 });

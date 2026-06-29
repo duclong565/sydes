@@ -13,11 +13,14 @@ const BORDER: Record<NodeType, string> = {
 
 export function SdsNode({ data }: NodeProps<AppNode>) {
   const metric = useMetricsStore((s) => s.byService[slugify(data.label)]);
+  const loadRate = data.config?.loadRate;
+  const isSource = (data.type === 'service' || data.type === 'lb') && loadRate !== undefined && loadRate >= 1;
   return (
     <div className={`w-40 rounded-md border bg-white shadow-sm ${BORDER[data.type]}`}>
       <Handle type="target" position={Position.Left} />
-      <div className={`rounded-t-md px-2 py-0.5 text-[10px] font-semibold uppercase text-white ${HEADER[data.type]}`}>
-        {data.type}
+      <div className={`flex items-center justify-between rounded-t-md px-2 py-0.5 text-[10px] font-semibold uppercase text-white ${HEADER[data.type]}`}>
+        <span>{data.type}</span>
+        {isSource && <span className="rounded-full bg-white/25 px-1.5 normal-case">⚡ {loadRate}/s</span>}
       </div>
       <div className="px-2 py-2 text-sm">{data.label}</div>
       <NodeMetricBadge metric={metric} />
