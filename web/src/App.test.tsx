@@ -219,7 +219,7 @@ describe('App brick 5 (run load)', () => {
   it('includes bodyKb in the load targets when set', async () => {
     // the resolved value is never asserted (we check the CALL args), so cast a minimal
     // stub rather than coupling to the current K6Result.total shape:
-    const spy = vi.spyOn(api, 'load').mockResolvedValue({ perTarget: [], total: { requests: 0, targetRps: 0, achievedRps: 0, dropped: 0, droppedRps: 0, errorRate: 0 } } as unknown as Awaited<ReturnType<typeof api.load>>);
+    const spy = vi.spyOn(api, 'load').mockResolvedValue({ perTarget: [], total: {} } as unknown as Awaited<ReturnType<typeof api.load>>);
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/examples') return new Response(JSON.stringify(exampleList));
       if (url === '/api/run') return new Response(JSON.stringify({ runId: 'saga', state: 'starting' }));
@@ -245,8 +245,8 @@ describe('App brick 5 (run load)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run load' })).not.toBeDisabled());
     await userEvent.click(screen.getByRole('button', { name: 'Run load' }));
-    expect(spy).toHaveBeenCalledWith(expect.any(String), expect.any(Number),
-      [expect.objectContaining({ rate: 50, bodyKb: 64 })]);
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.any(String), expect.any(Number),
+      [expect.objectContaining({ rate: 50, bodyKb: 64 })]));
     spy.mockRestore();
   });
 
