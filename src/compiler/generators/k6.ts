@@ -1,4 +1,4 @@
-export interface K6Target { slug: string; port: number; rate: number }
+export interface K6Target { slug: string; port: number; rate: number; bodyKb?: number }
 
 const SUB_METRICS: Record<string, string> = {
   http_reqs: 'count>=0',
@@ -33,11 +33,19 @@ export function generateK6(targets: K6Target[], durationSec: number): string {
     )
     .join('\n');
 
+  const bodies = targets
+    .map((t, i) =>
+      t.bodyKb
+        ? `const body${i} = '{"pad":"' + 'x'.repeat(${Math.max(0, t.bodyKb * 1024 - 10)}) + '"}';`
+        : `const body${i} = JSON.stringify({ ping: true });`,
+    )
+    .join('\n');
+
   const fns = targets
     .map(
       (t, i) =>
         `export function fn${i}() {\n` +
-        `  http.post('http://${t.slug}:${t.port}/', JSON.stringify({ ping: true }), { headers: { 'Content-Type': 'application/json' } });\n` +
+        `  http.post('http://${t.slug}:${t.port}/', body${i}, { headers: { 'Content-Type': 'application/json' } });\n` +
         `}`,
     )
     .join('\n');
@@ -52,6 +60,8 @@ ${scenarios}
 ${thresholds}
   },
 };
+
+${bodies}
 
 ${fns}
 `;

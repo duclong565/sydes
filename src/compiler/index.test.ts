@@ -311,3 +311,27 @@ describe('compile — edge legality', () => {
     expect(result.output.compose).toContain('UPSTREAM_HTTP: "http://edge-b:8080"');
   });
 });
+
+describe('compile — load body size', () => {
+  const g = (): Graph => ({
+    experimentId: 'e',
+    nodes: [{ id: 's', type: 'service', label: 'Checkout' }, { id: 'd', type: 'db', label: 'DB' }],
+    edges: [{ source: 's', target: 'd' }],
+  });
+
+  it('threads bodyKb into the generated k6', () => {
+    const r = compile(g(), { durationSec: 10, targets: [{ nodeId: 's', rate: 50, bodyKb: 64 }] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.output.k6).toContain("'x'.repeat(65526)");
+  });
+
+  it('fails loud on bodyKb out of 1–1024', () => {
+    for (const bodyKb of [0, 2.5, 2048]) {
+      const r = compile(g(), { durationSec: 10, targets: [{ nodeId: 's', rate: 50, bodyKb }] });
+      expect(r.ok).toBe(false);
+      if (r.ok) continue;
+      expect(r.errors.some((e) => /1–1024 KB/.test(e.message))).toBe(true);
+    }
+  });
+});

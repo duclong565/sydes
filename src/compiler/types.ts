@@ -24,7 +24,7 @@ export interface Graph {
   edges: GraphEdge[];
 }
 
-export interface LoadTarget { nodeId: string; rate: number }
+export interface LoadTarget { nodeId: string; rate: number; bodyKb?: number }
 export interface LoadConfig { durationSec: number; targets: LoadTarget[] }
 
 export interface LoadTargetResolved { slug: string; targetRps: number }
