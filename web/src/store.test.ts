@@ -103,3 +103,11 @@ describe('onConnect — kafka edge auto-orient', () => {
     expect({ source: onlyEdge().source, target: onlyEdge().target }).toEqual({ source: 'p', target: 'd' });
   });
 });
+
+describe('loadRate config', () => {
+  it('round-trips config.loadRate through toGraph', () => {
+    const s = useGraphStore.getState();
+    s.loadExample({ experimentId: 'e', nodes: [{ id: 's', type: 'service', label: 'Checkout', config: { loadRate: 50 } }], edges: [] });
+    expect(useGraphStore.getState().toGraph().nodes[0].config).toEqual({ loadRate: 50 });
+  });
+});
