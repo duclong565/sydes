@@ -95,9 +95,9 @@ carries the slug), each with its own `exec` function posting to `http://<slug>:<
 export const options = {
   scenarios: {
     'checkout': { executor:'constant-arrival-rate', rate:50, timeUnit:'1s',
-                  duration:'10s', preAllocatedVUs:100, exec:'fn0' },
+                  duration:'10s', preAllocatedVUs:50, maxVUs:500, exec:'fn0' },
     'search':   { executor:'constant-arrival-rate', rate:200, timeUnit:'1s',
-                  duration:'10s', preAllocatedVUs:300, exec:'fn1' },
+                  duration:'10s', preAllocatedVUs:200, maxVUs:2000, exec:'fn1' },
   },
   // No-op thresholds FORCE per-scenario sub-metrics into --summary-export.
   // (Without these, summary-export only has aggregate metrics — no per-target breakdown.)
@@ -116,9 +116,25 @@ export { fn0, fn1 };
 
 - Scenario **keys are slugs** (hyphens OK — they're string keys); `exec` points to
   generated identifiers `fn0..fnN` (slugs aren't valid JS identifiers).
-- `preAllocatedVUs` is sized generously from the rate (e.g. `Math.max(50, rate*2)`) so
-  the arrival-rate executor isn't VU-starved; exact factor is an implementation detail.
-- The no-op thresholds are the mechanism that surfaces per-tag stats — see Risks.
+- **`maxVUs` is the saturation contract, not an implementation detail.**
+  `dropped_iterations` fires when the arrival-rate executor can't grab a free VU within
+  the VU budget, and k6 (≥0.27) defaults `maxVUs = preAllocatedVUs` (no autoscale). So
+  the VU ceiling *defines* what "dropped" means:
+  - ceiling too low → drops are VU starvation, not the backend (the drawer's "Docker
+    couldn't keep up" becomes a lie);
+  - ceiling effectively infinite → k6 spins VUs to hold the rate, latency balloons, and
+    saturation hides in p95 with **zero drops**.
+  By Little's law, sustaining rate R at response latency L(s) needs ≈ R·L VUs. We set
+  **`preAllocatedVUs = rate` (warm pool) and `maxVUs = rate * 10` (ceiling)** → the
+  target is declared *dropping/saturated* once it can't be served within ~10× rate
+  concurrent VUs (effective latency > ~10s). This is generous enough that drops reflect
+  the **backend**, not an artificial VU cap, and bounded enough to not exhaust the k6
+  container. **Document in the drawer/help: "dropped = arrival rate not sustainable
+  within the VU budget (≈10s effective latency)."** Task 0 tunes the `*10` factor against
+  a real saturated backend.
+- The no-op thresholds + the `scenario` tag on `dropped_iterations` are the mechanism
+  that surfaces per-tag stats — **unproven, verified in Task 0 before the contract is
+  written** (see the task breakdown + the top-risk smoke under Testing).
 
 ### 2. `src/compiler/index.ts` — resolve targets, drop the auto-pick
 
@@ -127,7 +143,10 @@ Replace the `if (loadConfig)` block (106-113):
   `{ slug: slugify(node.label), port: node.type==='lb' ? 80 : 8080, rate }`.
 - `output.k6 = generateK6(resolved, loadConfig.durationSec)`.
 - `output.loadTargets = resolved.map(r => ({ slug: r.slug, targetRps: r.rate }))`.
-- The "first lb else first service" auto-pick is removed entirely.
+- The compiler no longer auto-picks an entry — it requires explicit `targets`. The old
+  "first lb else first service" heuristic isn't deleted from the system, it **relocates
+  to the CLI `--load` default** (§4) where a human invocation still needs a sensible
+  zero-config target.
 
 Validation (in `compile`, fail-loud — collected with the existing edge-legality pass):
 - a `loadConfig` with **zero targets** → error `load requires at least one target`.
@@ -147,7 +166,12 @@ Validation (in `compile`, fail-loud — collected with the existing edge-legalit
 - `total` = the existing top-level aggregate metrics (`http_reqs`, `http_req_duration`,
   `http_req_failed`) + summed `targetRps`/`dropped`.
 - `run(experimentId, runDir, targets)` passes `targets` through to `parseSummary`.
-- Keep the `existing one-shot docker run`; only the parse + signature change.
+- Keep the existing one-shot docker run; only the parse + signature change — **except
+  pin the image.** `k6-runner.ts:46` currently runs `grafana/k6` (= `latest`); this
+  brick now depends hard on `--summary-export` (soft-deprecated upstream) + tagged
+  sub-metric behavior. Pin a specific `grafana/k6:<tag>` (the exact tag is the one Task 0
+  verifies the mechanism against), mirroring the repo's `apache/kafka:3.7.2` discipline.
+  The smoke asserts against the pinned tag.
 
 ### 4. `src/agent/server.ts` — `/api/load` body, run-experiment, CLI
 
@@ -192,14 +216,23 @@ when `data.config?.loadRate` is set and `type ∈ {service,lb}`, a right-aligned
 
 - Remove the `rate` state and the Light/Normal/Spike/Stress preset row; keep
   `durationSec`.
-- `onRunLoad` (was `onGenerateLoad`): build
-  `targets = store.nodes.filter(n => (n.data.type==='service'||'lb') && (n.data.config?.loadRate ?? 0) >= 1)
-            .map(n => ({ nodeId: n.id, rate: n.data.config!.loadRate! }))`,
-  then `api.load(runId, durationSec, targets)`.
+- A shared **`isLoadSource(n)`** predicate is the single source of truth for both the
+  enable-gate and the targets filter — and it must equal the **validity rule**, not just
+  "≥ 1":
+  ```ts
+  const t = n.data.type, r = n.data.config?.loadRate;
+  const isLoadSource = (t === 'service' || t === 'lb') && Number.isInteger(r) && r >= 1;
+  ```
+  (Note the full `(t === 'service' || t === 'lb')` — not `t === 'service' || 'lb'`, which
+  is always truthy.) A node with `loadRate: 2.5` is inline-red in the Inspector **and**
+  excluded here, so the button can't enable into a guaranteed 400.
+- `onRunLoad` (was `onGenerateLoad`): `targets = store.nodes.filter(isLoadSource)
+  .map(n => ({ nodeId: n.id, rate: n.data.config!.loadRate! }))`, then
+  `api.load(runId, durationSec, targets)`.
 - The toolbar load control (still gated on `state==='running'`) shows: `durationSec`
-  input, an **aggregate** `⚡ {N} sources · {Σrate} rps` count, and a **Run load** button
-  **disabled when zero sources** (count text becomes the how-to hint
-  "select a service → toggle ⚡ Load source").
+  input, an **aggregate** `⚡ {N} sources · {Σrate} rps` count over `isLoadSource` nodes,
+  and a **Run load** button **disabled when zero sources** (count text becomes the how-to
+  hint "select a service → toggle ⚡ Load source").
 - `lastLoad` is the new `K6Result`; passed to the Drawer unchanged.
 
 ### 9. `web/src/api.ts` — load signature + result type
@@ -262,10 +295,12 @@ toolbar Run load          → App builds targets from marked nodes
   `perTarget` rows + summed `total`; a slug with a missing `dropped_iterations` sub-metric
   → `dropped: 0`; achieved < target preserved (no clamping).
 
-**Engine smoke (`*.smoke.test.ts`, `RUN_DOCKER=1`):** a real 2-target k6 run against a
-live stack → assert the summary actually contains the per-scenario sub-metrics and
-`parseSummary` yields two rows. **This guards the threshold-submetric mechanism (the
-top risk).**
+**Engine smoke (`*.smoke.test.ts`, `RUN_DOCKER=1`):** the Task-0 spike, hardened into a
+kept regression — a real 2-target k6 run against a live stack (one saturated) → assert
+the summary contains the per-scenario sub-metrics (incl. `dropped_iterations{scenario:…}`)
+and `parseSummary` yields two rows with the saturated one showing drops. Pinned to the
+chosen `grafana/k6:<tag>`. **This is the top risk; Task 0 proves the shape before the
+contract is built, this smoke keeps it from regressing.**
 
 **Agent (`src/agent/load.test.ts` / `server.test.ts`, FakeRunner):**
 - `POST /api/load` with `{durationSec, targets}` → canned summary parsed to the new
@@ -296,6 +331,17 @@ top risk).**
 
 ## Likely task breakdown (for writing-plans)
 
+0. **Spike the k6 mechanism (throwaway, `RUN_DOCKER`, BEFORE the contract).** Hand-write
+   a 2-scenario k6 script (scenario keys = slugs, no-op `{scenario:…}` thresholds, the
+   `maxVUs` policy) and run it against a live 2-service stack — one healthy, one forced
+   slow/saturated. Assert all three load-bearing assumptions: (1) `scenario` system tag
+   present, (2) the no-op thresholds surface `metric{scenario:slug}` sub-metrics in
+   `--summary-export`, (3) **`dropped_iterations` carries the `scenario` tag** (the shaky
+   one). Also confirm a saturated backend actually produces **drops** (not just latency)
+   under `maxVUs = rate*10`, and lock the exact `grafana/k6:<tag>`. **If (3) fails**, the
+   contract changes here (e.g. `dropped` only at the `total` level, or derive saturation
+   from achieved-vs-target alone) — cheaper to learn now than after task 8. Output: a
+   confirmed sub-metric key shape + tag + `maxVUs` factor that tasks 1–3 build on.
 1. **Contract + compiler** — `LoadConfig`/`LoadTarget`/`NodeConfig.loadRate` in
    `types.ts`; `generateK6` multi-scenario + thresholds; `index.ts` resolve +
    `loadTargets` + validation; `k6.test.ts` + `index.test.ts` (TDD).
