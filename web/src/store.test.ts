@@ -26,9 +26,19 @@ describe('graph store', () => {
     expect(nodes[0]!.type).toBe('sds');
   });
 
-  it('addNode for kafka has no config', () => {
+  it('addNode for kafka seeds partitions: 1', () => {
     useGraphStore.getState().addNode('kafka');
-    expect(useGraphStore.getState().nodes[0]!.data.config).toBeUndefined();
+    expect(useGraphStore.getState().nodes[0]!.data.config).toEqual({ partitions: 1 });
+  });
+
+  it('toGraph round-trips a kafka partitions config', () => {
+    const g: Graph = {
+      experimentId: 'e',
+      nodes: [{ id: 'k', type: 'kafka', label: 'Bus', config: { partitions: 4 } }],
+      edges: [],
+    };
+    useGraphStore.getState().loadExample(g);
+    expect(useGraphStore.getState().toGraph()).toEqual(g);
   });
 
   it('updateNode patches label and config independently', () => {
