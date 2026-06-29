@@ -99,13 +99,24 @@ export function buildServer(deps: AgentDeps): AgentServer {
     if (!rec) return reply.code(404).send({ error: 'unknown runId' });
     if (rec.state !== 'running') return reply.code(409).send({ error: 'run is not running' });
     if (rec.loadInFlight) return reply.code(409).send({ error: 'a load is already running' });
+    // Shape-guard the body so a malformed payload fails loud as 400, not a generic 500
+    // from a throw deep in compile. (The compiler still validates target contents.)
+    if (typeof durationSec !== 'number' || !Number.isFinite(durationSec) || durationSec <= 0) {
+      return reply.code(400).send({ error: 'durationSec must be a positive number' });
+    }
+    if (!Array.isArray(targets)) {
+      return reply.code(400).send({ error: 'targets must be an array' });
+    }
     const result = compile(rec.graph, { durationSec, targets });
     if (!result.ok) return reply.code(400).send(result);
-    if (!result.output.k6) return reply.code(400).send({ error: 'no load entry (needs a service or lb target)' });
-    writeFileSync(join(rec.runDir, 'load.js'), result.output.k6);
+    // k6 + loadTargets are emitted together by the compiler; guard on the script and
+    // pass loadTargets (defaulting to []) so neither needs a non-null assertion.
+    const { k6: loadScript, loadTargets } = result.output;
+    if (!loadScript) return reply.code(400).send({ error: 'no load entry (needs a service or lb target)' });
+    writeFileSync(join(rec.runDir, 'load.js'), loadScript);
     rec.loadInFlight = true;
     try {
-      rec.lastLoad = await k6.run(runId, rec.runDir, result.output.loadTargets!, durationSec);
+      rec.lastLoad = await k6.run(runId, rec.runDir, loadTargets ?? [], durationSec);
       return rec.lastLoad;
     } catch (err) {
       return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
