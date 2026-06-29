@@ -73,6 +73,6 @@ export const api = {
   stop: (runId: string) =>
     jsonFetch<{ runId: string; state: string }>('/api/stop', { method: 'POST', body: JSON.stringify({ runId }) }),
   logs: (runId: string) => jsonFetch<{ runId: string; lines: string }>(`/api/logs/${runId}`),
-  load: (runId: string, durationSec: number, targets: { nodeId: string; rate: number }[]) =>
+  load: (runId: string, durationSec: number, targets: { nodeId: string; rate: number; bodyKb?: number }[]) =>
     jsonFetch<LoadResult>(`/api/load/${runId}`, { method: 'POST', body: JSON.stringify({ durationSec, targets }) }),
 };
