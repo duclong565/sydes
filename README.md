@@ -10,7 +10,7 @@ SysDes lets you drag-and-drop system components onto a canvas, wire them togethe
 - **Graph Compiler** — translates your diagram into a `docker-compose.yml` (+ nginx config + k6 load script).
 - **Real Docker runtime** — containers spin up in an isolated bridge network; the Saga chain (service → Kafka → worker → Postgres) runs end-to-end.
 - **Run UX** — Preview the compiled compose, Run (with a "Warming up…" state for Kafka cold start), watch per-service status, and tail container logs.
-- **Live metrics** — per-node CPU/memory badges stream onto the canvas over a WebSocket while the run is live, plus per-DB write counts and a Metrics drawer table. Mark any service or LB node as a load source (`config.loadRate`); press **Run load** to fire k6 — results show per-target achieved vs target RPS and dropped iterations.
+- **Live metrics** — per-node CPU/memory badges stream onto the canvas over a WebSocket while the run is live, plus per-DB write counts and a Metrics drawer table. Toggle **⚡ Load source** on any service/LB node in the Inspector to give it a rate (a ⚡N/s chip appears on the node); set a global duration and press **Run load** to fire k6 at every marked source at once — the Metrics drawer shows per-target achieved vs target RPS and dropped iterations, with saturated targets highlighted.
 
 ## Architecture
 
