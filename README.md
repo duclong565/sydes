@@ -10,7 +10,7 @@ SysDes lets you drag-and-drop system components onto a canvas, wire them togethe
 - **Graph Compiler** — translates your diagram into a `docker-compose.yml` (+ nginx config + k6 load script).
 - **Real Docker runtime** — containers spin up in an isolated bridge network; the Saga chain (service → Kafka → worker → Postgres) runs end-to-end.
 - **Run UX** — Preview the compiled compose, Run (with a "Warming up…" state for Kafka cold start), watch per-service status, and tail container logs.
-- **Live metrics** — per-node CPU/memory badges stream onto the canvas over a WebSocket while the run is live, plus per-DB write counts and a Metrics drawer table.
+- **Live metrics** — per-node CPU/memory badges stream onto the canvas over a WebSocket while the run is live, plus per-DB write counts and a Metrics drawer table. Mark any service or LB node as a load source (`config.loadRate`); press **Run load** to fire k6 — results show per-target achieved vs target RPS and dropped iterations.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ npm run sim examples/saga.json --load --metrics
 
 ## Status
 
-🟢 **Working end-to-end.** The engine (Graph Compiler → Docker → k6 → metrics) and both Go images are complete, and the Saga chain runs end-to-end. The full UI epic is in: canvas, palette, inspector, run/teardown UX + Logs drawer, and **live per-node metric badges over WebSocket** (Metrics drawer). Recent additions: edge-legality validation, service→service cascades, DB write-visibility, and a Kafka partitions field. Next up is post-epic packaging — cloud SPA hosting + WebSocket relay + `npx sds-agent`.
+🟢 **Working end-to-end.** The engine (Graph Compiler → Docker → k6 → metrics) and both Go images are complete, and the Saga chain runs end-to-end. The full UI epic is in: canvas, palette, inspector, run/teardown UX + Logs drawer, and **live per-node metric badges over WebSocket** (Metrics drawer). Recent additions: edge-legality validation, service→service cascades, DB write-visibility, a Kafka partitions field, and **per-service load targeting** (mark any service/LB node with a rate, run k6, get per-target results). Next up is post-epic packaging — cloud SPA hosting + WebSocket relay + `npx sds-agent`.
 
 ## Docs
 

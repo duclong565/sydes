@@ -20,7 +20,7 @@ src/agent/  — Fastify "sds-agent" wrapping the engine
 src/engine/ + src/compiler/  — the orchestration engine:
    - Graph Compiler (src/compiler): graph JSON → docker-compose (+ nginx + k6)
    - Docker Controller (src/engine/controller.ts): docker compose up/down/ps/logs via a Runner seam
-   - k6 Runner (src/engine/k6-runner.ts): one-shot grafana/k6 load run
+   - k6 Runner (src/engine/k6-runner.ts): one-shot `grafana/k6:0.49.0` load run — one tagged `constant-arrival-rate` scenario per load target
    - Metrics Collector (src/engine/metrics.ts): dockerode container.stats → CPU%/mem
    - sim CLI (src/engine/cli.ts): run an experiment from the terminal
    │  dockerode + `docker compose` CLI
@@ -40,7 +40,7 @@ Docker runtime (isolated bridge network per experiment)
 | Engine | TypeScript (ESM, Node) — compiler + controller + k6 runner + metrics |
 | Docker integration | dockerode + `docker compose` CLI (spawned via a `Runner` seam) |
 | Custom service images | Go (scratch, `CGO_ENABLED=0`) — `sds/microservice`, `sds/worker` |
-| Load generator | k6 (one-shot `grafana/k6` container) |
+| Load generator | k6 (one-shot `grafana/k6:0.49.0`); load targets are per-node `config.loadRate` (service/lb only); one tagged scenario per target; results are per-target (target vs achieved RPS + dropped iterations) |
 | Metrics | dockerode `container.stats` (CPU%/mem) + per-db write count, **streamed to the canvas over a `@fastify/websocket` channel** (`GET /api/metrics/:runId`). **No Prometheus/cAdvisor.** |
 | Tests | vitest (root engine/agent + `web/`), gated real-Docker smokes |
 
@@ -59,7 +59,7 @@ Docker runtime (isolated bridge network per experiment)
 Reads a graph JSON (nodes + typed edges) and emits:
 - `docker-compose.yml` — services, env vars, healthchecks, network.
 - `nginx.conf` — upstream config for LB nodes.
-- k6 script — load pattern (only when a load config is supplied).
+- k6 script — one tagged `constant-arrival-rate` scenario per load target (only when a load config is supplied); `LoadConfig` is `{ durationSec, targets: [{nodeId, rate}] }` — targets come from nodes with `config.loadRate` set (service/lb only).
 
 Node types: `service | kafka | worker | db | lb` (no Redis node).
 
@@ -90,7 +90,7 @@ A `kafka` node carries a `config.partitions` (default 1) → wires `--partitions
 - **apache/kafka:3.7.2** (NOT `latest`/4.x — 4.x breaks kafka-go v0.4.51 consumer groups); KRaft single-node env.
 - **Isolated networks**: each experiment gets its own Docker bridge network; container names are the DNS hostnames. Compose network name is doubled: `sds-<id>_sds-<id>-net`.
 - **Go not on PATH** in this env: prefix Go commands with `export PATH="$PATH:/usr/local/go/bin"`. Worker module is `go 1.25` (pgx); microservice `go 1.23`.
-- **Metrics mapping**: `container.stats` CPU%/mem → per-node badges (live over the metrics WebSocket); per-db `n_tup_ins` → Writes/Δ badge + Metrics-table columns; k6 `http_req_duration`/`http_reqs` → throughput/latency overlay.
+- **Metrics mapping**: `container.stats` CPU%/mem → per-node badges (live over the metrics WebSocket); per-db `n_tup_ins` → Writes/Δ badge + Metrics-table columns; k6 per-target `http_req_duration`/`http_reqs` → per-target results table (target vs achieved RPS, dropped iterations, saturation highlight) + total row.
 
 ## Commands
 
@@ -118,5 +118,5 @@ RUN_DOCKER=1 npx vitest run <file>.smoke.test.ts     # gated real-Docker smokes
 
 - ✅ Engine: Graph Compiler, Docker Controller, LB routing, k6 Runner, Metrics Collector, Go images, Saga (kafka→worker→postgres) chain, robustness cleanup.
 - ✅ UI epic bricks 1–4: agent HTTP API + SPA shell; React Flow canvas → graph JSON; run/teardown UX + warmup + Logs tab; **live per-node metric badges over WebSocket** (Metrics drawer tab, the project's first WebSocket).
-- ✅ Post-epic features: edge-legality (default-deny allowlist) + service→service upstream cascade; DB write-visibility badges (`n_tup_ins` over the metrics WS); Kafka partitions field (`--partitions N` + consumer-balance hint); Stop works on an errored run.
+- ✅ Post-epic features: edge-legality (default-deny allowlist) + service→service upstream cascade; DB write-visibility badges (`n_tup_ins` over the metrics WS); Kafka partitions field (`--partitions N` + consumer-balance hint); Stop works on an errored run; **per-service load targeting** (`config.loadRate` on service/lb nodes, one tagged k6 scenario per target, per-target results table with saturation highlight).
 - ⬜ Post-epic remaining: cloud SPA hosting + WebSocket relay + token pairing + `npx sds-agent` packaging.
