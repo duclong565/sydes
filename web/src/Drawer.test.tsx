@@ -46,11 +46,20 @@ describe('Drawer', () => {
     expect(onSelectTab).toHaveBeenCalledWith('metrics');
   });
 
-  it('renders the Last-load card on the metrics tab when lastLoad is set', () => {
-    const lastLoad = { requests: 200, rps: 20, latencyAvgMs: 8, latencyP95Ms: 18, latencyMaxMs: 95, errorRate: 0 };
-    render(<Drawer open tab="metrics" onToggle={() => {}} onSelectTab={() => {}} compose="" status={null} logs="" metrics={[]} lastLoad={lastLoad} />);
-    expect(screen.getByText(/Last load/i)).toBeInTheDocument();
-    expect(screen.getByText(/peak 95ms/)).toBeInTheDocument();
+  it('renders a per-target results table with a total and highlights saturated rows', () => {
+    const lastLoad = {
+      perTarget: [
+        { slug: 'gateway', targetRps: 200, achievedRps: 200, requests: 2000, dropped: 0, errorRate: 0.002, latencyAvgMs: 9, latencyP95Ms: 18, latencyMaxMs: 61 },
+        { slug: 'checkout', targetRps: 50, achievedRps: 38, requests: 380, dropped: 120, errorRate: 0.014, latencyAvgMs: 22, latencyP95Ms: 40, latencyMaxMs: 96 },
+      ],
+      total: { requests: 2380, targetRps: 250, achievedRps: 238, dropped: 120, errorRate: 0.005 },
+    };
+    render(<Drawer open tab="metrics" onToggle={() => {}} onSelectTab={() => {}} compose="" status={null} logs="" metrics={[]} lastLoad={lastLoad as any} />);
+    expect(screen.getByText('checkout')).toBeInTheDocument();
+    expect(screen.getAllByText(/120/).length).toBeGreaterThan(0); // dropped (appears in row + total)
+    expect(screen.getByText('total')).toBeInTheDocument();
+    const row = screen.getByText('checkout').closest('tr')!;
+    expect(row.className).toMatch(/orange|amber|bg-/);          // saturated highlight
   });
   it('renders Writes and Δ columns for a db row, — for a non-db row', () => {
     const m = [
