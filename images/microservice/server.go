@@ -53,6 +53,11 @@ func (s *Server) Routes() http.Handler {
 	return mux
 }
 
+// delayMs is the simulated processing time: base latency + jitter + per-KB body cost.
+func delayMs(cfg Config, bytes int64, jitter int) float64 {
+	return float64(cfg.LatencyMS) + float64(jitter) + float64(bytes)/1024.0*cfg.MsPerKb
+}
+
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	s.metrics.InFlight.Inc()
 	defer s.metrics.InFlight.Dec()
@@ -60,13 +65,13 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	defer func() { s.metrics.Duration.Observe(time.Since(start).Seconds()) }()
 
-	_, _ = io.Copy(io.Discard, r.Body)
+	n, _ := io.Copy(io.Discard, r.Body)
 
-	delay := s.cfg.LatencyMS
+	jitter := 0
 	if s.cfg.JitterMS > 0 {
-		delay += s.rand.Intn(s.cfg.JitterMS + 1)
+		jitter = s.rand.Intn(s.cfg.JitterMS + 1)
 	}
-	time.Sleep(time.Duration(delay) * time.Millisecond)
+	time.Sleep(time.Duration(delayMs(s.cfg, n, jitter) * float64(time.Millisecond)))
 
 	if s.rand.Float64() < s.cfg.ErrorRate {
 		s.respond(w, http.StatusInternalServerError, map[string]string{"error": "injected"})
