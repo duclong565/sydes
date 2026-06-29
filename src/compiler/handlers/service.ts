@@ -4,13 +4,20 @@ import { dbUrl } from './db.js';
 
 export const serviceHandler: NodeHandler = {
   validate(node, index) {
+    const errors = [];
     const hasEdge = index.inEdges(node.id).length > 0 || index.outEdges(node.id).length > 0;
-    return hasEdge ? [] : [{ nodeId: node.id, message: 'Service must have at least one edge' }];
+    if (!hasEdge) errors.push({ nodeId: node.id, message: 'Service must have at least one edge' });
+    const ms = node.config?.msPerKb;
+    if (ms !== undefined && (typeof ms !== 'number' || ms < 0)) {
+      errors.push({ nodeId: node.id, message: 'msPerKb must be ≥ 0' });
+    }
+    return errors;
   },
   compile(node, index) {
     const env: Record<string, string> = {
       LATENCY_MS: String(node.config?.latencyMs ?? 0),
       ERROR_RATE: String(node.config?.errorRate ?? 0),
+      MS_PER_KB: String(node.config?.msPerKb ?? 0),
     };
     const kafkaDeps: string[] = [];
     for (const edge of index.outEdges(node.id)) {

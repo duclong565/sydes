@@ -9,6 +9,7 @@ export interface GraphNode {
     errorRate?: number;
     partitions?: number;
     loadRate?: number;   // present + integer ≥1 = this node is a load source at N rps
+    msPerKb?: number;    // service receiver: +ms latency per KB received (float ≥ 0)
   };
 }
 

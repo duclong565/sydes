@@ -116,3 +116,25 @@ describe('serviceHandler.compile upstream cascade', () => {
     expect(env.UPSTREAM_HTTP).toBeUndefined();
   });
 });
+
+describe('serviceHandler msPerKb', () => {
+  const g = (msPerKb?: number): Graph => ({
+    experimentId: 'e',
+    nodes: [{ id: 's', type: 'service', label: 'Checkout', ...(msPerKb !== undefined ? { config: { msPerKb } } : {}) },
+            { id: 'k', type: 'kafka', label: 'Bus' }],
+    edges: [{ source: 's', target: 'k' }],
+  });
+
+  it('emits MS_PER_KB from config.msPerKb (default 0)', () => {
+    const idx = buildIndex(g(0.5));
+    expect(serviceHandler.compile(idx.nodeMap.get('s')!, idx).environment.MS_PER_KB).toBe('0.5');
+    const idx0 = buildIndex(g());
+    expect(serviceHandler.compile(idx0.nodeMap.get('s')!, idx0).environment.MS_PER_KB).toBe('0');
+  });
+
+  it('validate rejects a negative msPerKb', () => {
+    const idx = buildIndex(g(-1));
+    const errs = serviceHandler.validate(idx.nodeMap.get('s')!, idx);
+    expect(errs.some((e) => /msPerKb must be ≥ 0/.test(e.message))).toBe(true);
+  });
+});
