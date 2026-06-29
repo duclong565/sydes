@@ -1,10 +1,10 @@
 type RunState = 'starting' | 'running' | 'error' | 'stopped';
 
 const MAP: Record<RunState, { text: string; cls: string }> = {
-  starting: { text: '⏳ Warming up… (~10-30s)', cls: 'border-amber-300 bg-amber-50 text-amber-700' },
-  running: { text: '● Running', cls: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
-  error: { text: '✕ Error', cls: 'border-red-300 bg-red-50 text-red-700' },
-  stopped: { text: '○ Stopped', cls: 'border-slate-300 bg-slate-50 text-slate-500' },
+  starting: { text: '⏳ Warming up… (~10-30s)', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
+  running: { text: '● Running', cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
+  error: { text: '✕ Error', cls: 'border-red-500/40 bg-red-500/10 text-red-300' },
+  stopped: { text: '○ Stopped', cls: 'border-line bg-white/5 text-muted' },
 };
 
 export function RunBadge({ state, error }: { state: RunState | null; error?: string }) {

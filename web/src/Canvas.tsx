@@ -1,4 +1,4 @@
-import { ReactFlow, Background, Controls, MarkerType, type NodeTypes } from '@xyflow/react';
+import { ReactFlow, Background, BackgroundVariant, Controls, MarkerType, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useGraphStore } from './store.js';
 import { SdsNode } from './nodes/SdsNode.js';
@@ -16,7 +16,7 @@ export function Canvas({ loading = false }: { loading?: boolean }) {
   const shownEdges = edges.map((e) => ({ ...e, animated: loading, markerEnd: { type: MarkerType.ArrowClosed } }));
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full bg-ground">
       <ReactFlow
         nodes={nodes}
         edges={shownEdges}
@@ -26,9 +26,10 @@ export function Canvas({ loading = false }: { loading?: boolean }) {
         onConnect={onConnect}
         onNodeClick={(_, n) => setSelected(n.id)}
         onPaneClick={() => setSelected(null)}
+        proOptions={{ hideAttribution: true }}
         fitView
       >
-        <Background />
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.5} color="#1c2840" />
         <Controls />
       </ReactFlow>
     </div>
