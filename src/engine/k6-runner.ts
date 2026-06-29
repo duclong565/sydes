@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Runner } from './runner.js';
+import type { LoadTargetResolved } from '../compiler/types.js';
 
 const K6_IMAGE = 'grafana/k6:0.49.0'; // pinned (Task 0); --summary-export + tagged sub-metrics depend on it
 
@@ -25,7 +26,7 @@ function num(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-export function parseSummary(json: string, targets: { slug: string; targetRps: number }[], durationSec: number): K6Result {
+export function parseSummary(json: string, targets: LoadTargetResolved[], durationSec: number): K6Result {
   const data = JSON.parse(json) as { metrics?: Record<string, Record<string, unknown>> };
   const m = data.metrics ?? {};
   const sub = (metric: string, slug: string) => m[`${metric}{scenario:${slug}}`] ?? {};
@@ -70,7 +71,7 @@ export class K6Runner {
   async run(
     experimentId: string,
     runDir: string,
-    targets: { slug: string; targetRps: number }[],
+    targets: LoadTargetResolved[],
     durationSec: number,
   ): Promise<K6Result> {
     const net = `sds-${experimentId}_sds-${experimentId}-net`;
