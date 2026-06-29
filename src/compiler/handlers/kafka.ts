@@ -11,6 +11,9 @@ export const kafkaHandler: NodeHandler = {
       errors.push({ nodeId: node.id, message: 'Kafka must have at least one publisher' });
     if (!hasSubscriber)
       errors.push({ nodeId: node.id, message: 'Kafka must have at least one subscriber' });
+    const p = node.config?.partitions;
+    if (p !== undefined && (!Number.isInteger(p) || p < 1))
+      errors.push({ nodeId: node.id, message: 'Kafka partitions must be a whole number ≥ 1' });
     return errors;
   },
   compile(node, index) {
@@ -36,7 +39,7 @@ export const kafkaHandler: NodeHandler = {
       .join(' && ');
     const healthCmd = [
       `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list`,
-      `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic ${name} --partitions 1 --replication-factor 1`,
+      `/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic ${name} --partitions ${node.config?.partitions ?? 1} --replication-factor 1`,
       ...(groupChecks ? [groupChecks] : []),
     ].join(' && ') + ' || exit 1';
     return {

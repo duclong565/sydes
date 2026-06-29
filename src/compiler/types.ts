@@ -7,6 +7,7 @@ export interface GraphNode {
   config?: {
     latencyMs?: number;
     errorRate?: number;
+    partitions?: number;
   };
 }
 

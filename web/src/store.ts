@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react';
 
 export type NodeType = 'service' | 'kafka' | 'worker' | 'db' | 'lb';
-export interface NodeConfig { latencyMs?: number; errorRate?: number }
+export interface NodeConfig { latencyMs?: number; errorRate?: number; partitions?: number }
 
 // Index signature satisfies @xyflow/react's `Node<T extends Record<string, unknown>>` constraint.
 export interface SdsNodeData extends Record<string, unknown> {
@@ -68,7 +68,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         data: {
           type,
           label: `${TYPE_LABEL[type]} ${count}`,
-          ...(type === 'service' ? { config: { latencyMs: 0, errorRate: 0 } } : {}),
+          ...(type === 'service'
+            ? { config: { latencyMs: 0, errorRate: 0 } }
+            : type === 'kafka'
+            ? { config: { partitions: 1 } }
+            : {}),
         },
       };
       return { nodes: [...s.nodes, node] };

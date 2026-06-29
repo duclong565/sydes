@@ -102,3 +102,39 @@ describe('kafkaHandler.compile KRaft config', () => {
     expect(env.KAFKA_INTER_BROKER_LISTENER_NAME).toBe('PLAINTEXT');
   });
 });
+
+describe('kafkaHandler.compile partitions', () => {
+  it('wires --partitions from the node config', () => {
+    const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Order Events', config: { partitions: 4 } }], edges: [] };
+    const cmd = kafkaHandler.compile(g.nodes[0]!, buildIndex(g)).healthcheck!.test[1]!;
+    expect(cmd).toContain('--partitions 4');
+  });
+  it('defaults to --partitions 1 when the node has no config', () => {
+    const g: Graph = { experimentId: 'e', nodes: [{ id: 'k', type: 'kafka', label: 'Order Events' }], edges: [] };
+    const cmd = kafkaHandler.compile(g.nodes[0]!, buildIndex(g)).healthcheck!.test[1]!;
+    expect(cmd).toContain('--partitions 1');
+  });
+});
+
+describe('kafkaHandler.validate partitions', () => {
+  const pubSub = (partitions: number): Graph => ({
+    experimentId: 'e',
+    nodes: [
+      { id: 's', type: 'service', label: 'S' },
+      { id: 'k', type: 'kafka', label: 'Bus', config: { partitions } },
+      { id: 'w', type: 'worker', label: 'W' },
+    ],
+    edges: [{ source: 's', target: 'k' }, { source: 'w', target: 'k' }],
+  });
+  it('errors when partitions is not a whole number ≥ 1', () => {
+    for (const bad of [0, -2, 2.5]) {
+      const g = pubSub(bad);
+      const errors = kafkaHandler.validate(g.nodes[1]!, buildIndex(g));
+      expect(errors.some((e) => /whole number/i.test(e.message))).toBe(true);
+    }
+  });
+  it('passes with a valid integer partitions', () => {
+    const g = pubSub(3);
+    expect(kafkaHandler.validate(g.nodes[1]!, buildIndex(g))).toEqual([]);
+  });
+});
