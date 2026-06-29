@@ -19,23 +19,25 @@ function TabButton({ tab, active, onSelect, children }: { tab: DrawerTab; active
   return (
     <button
       onClick={() => onSelect(tab)}
-      className={`px-3 py-1.5 text-sm ${active ? 'border-b-2 border-blue-500 font-semibold' : 'text-slate-500'}`}
+      className={`px-3 py-1.5 text-sm transition ${active ? 'border-b-2 border-load font-semibold text-ink' : 'text-muted hover:text-dim'}`}
     >
       {children}
     </button>
   );
 }
 
+const CODE = 'max-h-[28vh] overflow-auto rounded-md border border-line bg-[#05070d] p-3 text-[11px] leading-snug text-dim';
+
 export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs, metrics, lastLoad }: DrawerProps) {
   return (
-    <div className="shrink-0 border-t border-slate-200 bg-white">
+    <div className="shrink-0 border-t border-line bg-surface">
       <div className="flex items-center px-2">
         <TabButton tab="compose" active={tab === 'compose'} onSelect={onSelectTab}>Compose</TabButton>
         <TabButton tab="status" active={tab === 'status'} onSelect={onSelectTab}>Status</TabButton>
         <TabButton tab="logs" active={tab === 'logs'} onSelect={onSelectTab}>Logs</TabButton>
         <TabButton tab="metrics" active={tab === 'metrics'} onSelect={onSelectTab}>Metrics</TabButton>
         <div className="flex-1" />
-        <button onClick={onToggle} className="px-2 py-1 text-sm text-slate-500">
+        <button onClick={onToggle} className="px-2 py-1 text-sm text-muted transition hover:text-ink">
           {open ? '▾ collapse' : '▴ expand'}
         </button>
       </div>
@@ -43,33 +45,33 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
       {open && (
         <div className="max-h-[34vh] overflow-auto p-3">
           {tab === 'compose' && (
-            <pre className="max-h-[28vh] overflow-auto rounded bg-slate-900 p-3 text-[11px] leading-snug text-slate-100">
+            <pre className={CODE}>
               {compose || '(press Preview to compile the canvas)'}
             </pre>
           )}
           {tab === 'logs' && (
-            <pre className="max-h-[28vh] overflow-auto rounded bg-slate-900 p-3 text-[11px] leading-snug text-slate-100">
+            <pre className={CODE}>
               {logs || '(no logs yet — run an experiment)'}
             </pre>
           )}
           {tab === 'metrics' && (
             <div>
               {lastLoad && (
-                <div className="mb-3 overflow-hidden rounded-lg border border-slate-200">
-                  <div className="bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">Load results</div>
+                <div className="mb-3 overflow-hidden rounded-lg border border-line">
+                  <div className="bg-surface2 px-3 py-1.5 text-xs font-semibold text-dim">Load results</div>
                   <table className="w-full text-right text-xs">
-                    <thead className="text-[10px] uppercase text-slate-400">
+                    <thead className="text-[10px] uppercase text-muted">
                       <tr><th className="px-2 py-1 text-left">target</th><th>target/s</th><th>achieved/s</th><th>dropped/s</th><th>err %</th><th>avg</th><th>p95</th><th>peak</th></tr>
                     </thead>
-                    <tbody className="font-mono">
+                    <tbody className="font-mono text-dim">
                       {lastLoad.perTarget.map((t) => {
                         const saturated = t.achievedRps < t.targetRps;
                         return (
-                          <tr key={t.slug} className={`border-t border-slate-100 ${saturated ? 'bg-orange-50' : ''}`}>
-                            <td className="px-2 py-1 text-left">{t.slug}</td>
+                          <tr key={t.slug} className={`border-t border-white/5 ${saturated ? 'bg-load/10' : ''}`}>
+                            <td className="px-2 py-1 text-left text-ink">{t.slug}</td>
                             <td>{t.targetRps}</td>
-                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.achievedRps.toFixed(0)}</td>
-                            <td className={saturated ? 'font-bold text-orange-600' : ''}>{t.droppedRps.toFixed(0)}{saturated ? ' ⚠' : ''}</td>
+                            <td className={saturated ? 'font-bold text-load' : ''}>{t.achievedRps.toFixed(0)}</td>
+                            <td className={saturated ? 'font-bold text-load' : ''}>{t.droppedRps.toFixed(0)}{saturated ? ' ⚠' : ''}</td>
                             <td>{(t.errorRate * 100).toFixed(1)}</td>
                             <td>{t.latencyAvgMs.toFixed(1)}</td>
                             <td>{t.latencyP95Ms.toFixed(0)}</td>
@@ -77,7 +79,7 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                           </tr>
                         );
                       })}
-                      <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+                      <tr className="border-t-2 border-line bg-white/[0.03] font-bold text-ink">
                         <td className="px-2 py-1 text-left">total</td>
                         <td>{lastLoad.total.targetRps}</td>
                         <td>{lastLoad.total.achievedRps.toFixed(0)}</td>
@@ -90,18 +92,18 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
                 </div>
               )}
               {metrics.length === 0 ? (
-                <div className="text-sm text-slate-400">(no live metrics — run an experiment)</div>
+                <div className="text-sm text-muted">(no live metrics — run an experiment)</div>
               ) : (
                 <table className="w-full text-left text-sm">
-                  <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th><th>Writes</th><th>Δ writes/s</th></tr></thead>
-                  <tbody className="font-mono">
+                  <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Service</th><th>CPU %</th><th>Mem</th><th>Writes</th><th>Δ writes/s</th></tr></thead>
+                  <tbody className="font-mono text-dim">
                     {metrics.map((m) => (
-                      <tr key={m.service} className="border-t border-slate-100">
-                        <td className="py-1">{m.service}</td>
+                      <tr key={m.service} className="border-t border-white/5">
+                        <td className="py-1 text-ink">{m.service}</td>
                         <td>{m.cpuPercent.toFixed(1)}</td>
                         <td>{m.memMB.toFixed(0)} MB</td>
                         <td>{m.writes !== undefined ? m.writes.toLocaleString() : '—'}</td>
-                        <td>{m.writesPerSec !== undefined ? `+${m.writesPerSec.toFixed(0)}` : '—'}</td>
+                        <td className={m.writesPerSec ? 'text-dbg' : ''}>{m.writesPerSec !== undefined ? `+${m.writesPerSec.toFixed(0)}` : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -110,15 +112,15 @@ export function Drawer({ open, tab, onToggle, onSelectTab, compose, status, logs
             </div>
           )}
           {tab === 'status' && (!status ? (
-            <div className="text-sm text-slate-400">(press Run to start the experiment)</div>
+            <div className="text-sm text-muted">(press Run to start the experiment)</div>
           ) : (
             <div>
-              <div className="mb-2 text-sm">State: <span className="font-mono">{status.state}</span>{status.error ? ` — ${status.error}` : ''}</div>
+              <div className="mb-2 text-sm text-dim">State: <span className="font-mono text-ink">{status.state}</span>{status.error ? ` — ${status.error}` : ''}</div>
               <table className="w-full text-left text-sm">
-                <thead className="text-xs uppercase text-slate-400"><tr><th className="py-1">Service</th><th>State</th><th>Health</th></tr></thead>
-                <tbody className="font-mono">
+                <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Service</th><th>State</th><th>Health</th></tr></thead>
+                <tbody className="font-mono text-dim">
                   {status.services.map((s) => (
-                    <tr key={s.name} className="border-t border-slate-100"><td className="py-1">{s.name}</td><td>{s.state}</td><td>{s.health ?? '—'}</td></tr>
+                    <tr key={s.name} className="border-t border-white/5"><td className="py-1 text-ink">{s.name}</td><td>{s.state}</td><td>{s.health ?? '—'}</td></tr>
                   ))}
                 </tbody>
               </table>

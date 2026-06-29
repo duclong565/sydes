@@ -145,45 +145,48 @@ export function App() {
   const stoppable = state === 'starting' || state === 'running' || state === 'error';
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-800">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <h1 className="mr-2 text-lg font-bold">System Design Sandbox</h1>
-        <label className="text-xs text-slate-500" htmlFor="exp">experiment</label>
+    <div className="flex h-screen flex-col overflow-hidden bg-ground font-mono text-ink">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur">
+        <h1 className="mr-1 font-display text-xl font-extrabold tracking-tight">
+          sy<span className="text-load">des</span>
+          <span className="ml-2 align-middle font-mono text-[10px] font-normal lowercase tracking-wide text-muted">system design sandbox</span>
+        </h1>
+        <label className="ml-2 text-xs text-muted" htmlFor="exp">experiment</label>
         <input id="exp" aria-label="experiment" value={experimentId} onChange={(e) => setExperimentId(e.target.value)}
-          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+          className="w-32 rounded-md border border-line bg-surface2 px-2 py-1 text-sm text-ink outline-none focus:border-load/60" />
         <select aria-label="load example" defaultValue="" onChange={(e) => onLoadExample(e.target.value)}
-          className="rounded border border-slate-300 px-2 py-1 text-sm">
+          className="rounded-md border border-line bg-surface2 px-2 py-1 text-sm text-ink outline-none focus:border-load/60">
           <option value="" disabled>Load example…</option>
           {examples.map((e) => (<option key={e.id} value={e.id}>{e.label}</option>))}
         </select>
         <RunBadge state={state} error={status?.error} />
-        {wsLive && <span className="text-xs text-emerald-600">● live metrics</span>}
+        {wsLive && <span className="flex items-center gap-1.5 text-xs text-dbg"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-dbg" />live metrics</span>}
         <div className="flex-1" />
         {state === 'running' && (
-          <div className="flex items-center gap-2 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1">
-            <label className="text-[11px] text-slate-500">dur
+          <div className="flex items-center gap-2 rounded-lg border border-line bg-surface2 px-2 py-1">
+            <label className="text-[11px] text-muted">dur
               <input aria-label="duration" type="number" min={1} max={120} value={durationSec}
                 onChange={(e) => setDurationSec(Number(e.target.value))}
-                className="ml-1 w-12 rounded border border-slate-300 px-1 py-0.5 text-sm text-right" /></label>
-            <span className={`text-[11px] font-semibold ${sources.length ? 'text-orange-600' : 'text-slate-400'}`}>
+                className="ml-1 w-12 rounded border border-line bg-surface px-1 py-0.5 text-right text-sm text-ink outline-none focus:border-load/60" /></label>
+            <span className={`text-[11px] font-semibold ${sources.length ? 'text-load' : 'text-muted'}`}>
               {sources.length ? `⚡ ${sources.length} sources · ${totalRps} rps` : 'select a service → toggle ⚡ Load source'}
             </span>
             <button onClick={onRunLoad} disabled={loading || sources.length === 0}
-              className="rounded bg-orange-600 px-2.5 py-1 text-sm font-medium text-white disabled:opacity-50">
+              className="rounded-md bg-load px-2.5 py-1 text-sm font-semibold text-[#1a0a02] transition hover:brightness-110 disabled:opacity-40">
               {loading ? 'Running load…' : 'Run load'}
             </button>
           </div>
         )}
-        <button className="rounded bg-slate-200 px-3 py-1 text-sm" onClick={onPreview}>Preview</button>
-        <button className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50" disabled={warming} onClick={onRun}>Run</button>
-        <button className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50" disabled={!stoppable} onClick={onStop}>Stop</button>
+        <button className="rounded-md border border-line px-3 py-1 text-sm text-ink transition hover:bg-white/5" onClick={onPreview}>Preview</button>
+        <button className="rounded-md bg-svc px-3 py-1 text-sm font-semibold text-[#04122e] transition hover:brightness-110 disabled:opacity-40" disabled={warming} onClick={onRun}>Run</button>
+        <button className="rounded-md bg-red-600 px-3 py-1 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40" disabled={!stoppable} onClick={onStop}>Stop</button>
       </div>
 
       {error && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-1.5 text-sm text-red-700">
+        <div className="flex shrink-0 items-center gap-2 border-b border-red-500/30 bg-red-500/10 px-4 py-1.5 text-sm text-red-300">
           <span className="font-semibold">✕</span>
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="rounded px-2 py-0.5 text-xs text-red-600 hover:bg-red-100">dismiss</button>
+          <button onClick={() => setError(null)} className="rounded px-2 py-0.5 text-xs text-red-400 hover:bg-red-500/20">dismiss</button>
         </div>
       )}
 
