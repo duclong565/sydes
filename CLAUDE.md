@@ -58,8 +58,10 @@ Docker runtime (isolated bridge network per experiment)
 
 Reads a graph JSON (nodes + typed edges) and emits:
 - `docker-compose.yml` — services, env vars, healthchecks, network.
-- `nginx.conf` — upstream config for LB nodes.
-- k6 script — one tagged `constant-arrival-rate` scenario per load target (only when a load config is supplied); `LoadConfig` is `{ durationSec, targets: [{nodeId, rate}] }` — targets come from nodes with `config.loadRate` set (service/lb only).
+- `nginx.conf` — upstream config for LB nodes; always includes `client_max_body_size 2m` so large LB-path bodies don't 413.
+- k6 script — one tagged `constant-arrival-rate` scenario per load target (only when a load config is supplied); `LoadConfig` is `{ durationSec, targets: [{nodeId, rate, bodyKb?}] }` — targets come from nodes with `config.loadRate` set (service/lb only). A load-source node's `config.loadBodyKb` (1–1024 KB, validated fail-loud) attaches a constant ≈N-KB body to every k6 request at that target; omit → `{"ping":true}` (tiny).
+
+**Payload sensitivity** — a service node's `config.msPerKb` (≥ 0 float, default 0) is emitted as `MS_PER_KB` into the compose env. The microservice adds `bytesReceived/1024 × msPerKb` ms to its sleep on every request. **Cascade limitation**: `msPerKb` fires on direct HTTP hits and LB-forwarded traffic, but NOT on a `service → service` cascade — that downstream call uses `http.NoBody`, so the target receives zero bytes and incurs no extra latency.
 
 Node types: `service | kafka | worker | db | lb` (no Redis node).
 
@@ -76,7 +78,7 @@ A `kafka` node carries a `config.partitions` (default 1) → wires `--partitions
 
 ## Image Env-Var APIs
 
-`sds/microservice` (Go HTTP sim) — reads: `PORT, LATENCY_MS, LATENCY_JITTER_MS, ERROR_RATE, UPSTREAM_HTTP, KAFKA_BROKER, PUBLISH_TOPIC`. Exposes `/metrics` (Prometheus text) + `/health`; handles HTTP, optional upstream cascade, optional Kafka publish.
+`sds/microservice` (Go HTTP sim) — reads: `PORT, LATENCY_MS, LATENCY_JITTER_MS, ERROR_RATE, UPSTREAM_HTTP, KAFKA_BROKER, PUBLISH_TOPIC, MS_PER_KB` (per-KB body latency: adds `bytesReceived/1024 × msPerKb` ms to the simulated sleep; default 0 = byte-identical to before). Exposes `/metrics` (Prometheus text) + `/health`; handles HTTP, optional upstream cascade, optional Kafka publish.
 
 `sds/worker` (Go consumer) — reads: `PORT, LATENCY_MS, LATENCY_JITTER_MS, ERROR_RATE, KAFKA_BROKER, SUBSCRIBE_TOPICS, DB_URL`. Consumes a Kafka consumer group, simulates work, persists to postgres via pgx (on the ok path); `/health` + `/metrics`.
 
