@@ -13,6 +13,24 @@ const BORDER: Record<NodeType, string> = {
 
 export function SdsNode({ data }: NodeProps<AppNode>) {
   const metric = useMetricsStore((s) => s.byService[slugify(data.label)]);
+
+  // DB renders as a postgres cylinder (matches the landing diagram).
+  if (data.type === 'db') {
+    return (
+      <div className="sds-db">
+        <Handle type="target" position={Position.Left} />
+        <div className="text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-300/90">db</div>
+        <div className="mt-0.5 text-center font-mono text-sm text-ink">{data.label}</div>
+        {metric?.writes !== undefined && (
+          <div className="mt-1 text-center font-mono text-[10px] text-dbg">
+            {metric.writes.toLocaleString()} w{metric.writesPerSec ? ` · +${metric.writesPerSec.toFixed(0)}/s` : ''}
+          </div>
+        )}
+        <Handle type="source" position={Position.Right} />
+      </div>
+    );
+  }
+
   const loadRate = data.config?.loadRate;
   const isSource = (data.type === 'service' || data.type === 'lb') && loadRate !== undefined && loadRate >= 1;
   return (
